@@ -5,6 +5,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.sql.Timestamp;
 import java.util.UUID;
 
 @Repository
@@ -59,7 +60,7 @@ public class IdentityMappingStore {
                         .addValue("entityType", entityType.name())
                         .addValue("externalId", externalId)
                         .addValue("sourceVersion", sourceVersion)
-                        .addValue("observedAt", observedAt), UUID.class);
+                        .addValue("observedAt", Timestamp.from(observedAt)), UUID.class);
     }
 
     public UUID insertMapping(UUID providerId, ReferenceEntityType entityType, String externalId,
@@ -75,7 +76,7 @@ public class IdentityMappingStore {
                         .addValue("entityType", entityType.name())
                         .addValue("externalId", externalId)
                         .addValue("internalId", internalId)
-                        .addValue("observedAt", observedAt), UUID.class);
+                        .addValue("observedAt", Timestamp.from(observedAt)), UUID.class);
     }
 
     public record ExistingMapping(UUID mappingId, UUID internalId) {
