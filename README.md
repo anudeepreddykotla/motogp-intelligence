@@ -204,7 +204,7 @@ The actual structure may be refined during architecture planning, with significa
 
 ## Current Status
 
-This repository is being established as a clean implementation.
+Phase 0 foundation is implemented. Historical ingestion, news ingestion, ML models, RAG, agents, simulation, and live timing remain intentionally out of scope until their later phases.
 
 No feature should be considered complete until its implementation, tests, and documentation are available.
 
@@ -212,9 +212,34 @@ Implementation progress, known limitations, data-source constraints, and archite
 
 ## Getting Started
 
-Initial setup instructions will be added as the application skeleton and development environment are implemented.
+The local stack requires Java 21, Python 3.11+, Node.js, Docker, and Docker Compose. Start Docker Desktop or another Docker daemon first.
 
-The intended development environment uses Java 21, Python, Node.js, Docker, and Docker Compose.
+```bash
+cp .env.example .env
+docker compose up -d --build
+```
+
+Verify the foundation:
+
+```bash
+curl http://localhost:8080/actuator/health/readiness
+curl http://localhost:8000/health
+curl http://localhost:8080/api/v1/system/status
+curl http://localhost:8080/api/v1/system/integration/python
+open http://localhost:5173
+```
+
+The Java service runs Flyway against PostgreSQL during startup. The internal Java-to-Python health request uses `INTERNAL_SERVICE_TOKEN` from `.env`.
+
+For focused local development:
+
+```bash
+cd backend/core && mvn test
+cd ../../ai && python -m pytest
+cd ../frontend/web && npm install && npm run build && npm test
+```
+
+Stop the stack with `docker compose down`. Add `-v` only when intentionally removing the local PostgreSQL volume.
 
 ## License
 
