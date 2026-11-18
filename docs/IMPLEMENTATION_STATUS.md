@@ -4,9 +4,9 @@ Last reviewed: 2026-11-18
 
 ## Current state
 
-Status: Phase 0 foundation implemented; Phase 1 has not started.
+Status: Phase 0 foundation and Phase 1.1 provider identity-mapping milestone implemented; historical ingestion has not started.
 
-The approved Java-first modular monolith, Python AI service, React frontend shell, foundational Flyway migration, Docker Compose configuration, and CI workflow are present. No historical ingestion, news ingestion, ML models, RAG, agents, simulation, or live timing has been implemented.
+The approved Java-first modular monolith, Python AI service, React frontend shell, foundational Flyway migrations, Docker Compose configuration, and CI workflow are present. Phase 1.1 is limited to a Java provider-adapter boundary, a deterministic fixture provider, and conflict-safe provider identity mapping. No historical race-data ingestion, news ingestion, ML models, RAG, agents, simulation, or live timing has been implemented.
 
 The requested `docs/PHASE_0_EXECUTION_PLAN.md` filename does not exist in the approved documentation set. The equivalent plan is `docs/DEVELOPMENT_PLAN.md`, which remains the source used for Phase 0 sequencing.
 
@@ -23,6 +23,9 @@ The requested `docs/PHASE_0_EXECUTION_PLAN.md` filename does not exist in the ap
 - Request correlation IDs using `X-Request-Id`.
 - Stateless security configuration with future API routes denied by default.
 - PostgreSQL, Redis, JPA, Flyway, and internal HTTP client configuration.
+- Historical provider adapter contract and provider registry.
+- Fixture historical provider with normalized external references for contract testing.
+- Identity mapping service/store with internal-entity validation, source-record provenance, idempotency, and conflict rejection.
 
 ### Python
 
@@ -50,13 +53,14 @@ The requested `docs/PHASE_0_EXECUTION_PLAN.md` filename does not exist in the ap
 - `.env.example` with no real secrets.
 - GitHub Actions for Java, Python, frontend, and documentation checks.
 - Foundational migration `V1__foundation.sql` containing provider, ingestion, raw payload, provenance, reference, affiliation, and session tables.
+- Incremental migration `V2__fixture_historical_provider.sql` registering the fixture provider without changing the approved schema.
 
 ## Verification executed
 
 | Check | Result |
 |---|---|
-| `mvn -B test` | Passed: 3 tests, 0 failures, 0 errors |
-| `mvn -B verify` | Passed: tests and executable JAR packaging |
+| `mvn -B test` | Passed: 10 tests, 0 failures, 0 errors, including fixture-provider and identity-mapping tests |
+| `mvn -B clean verify` | Passed: 10 tests, 0 failures, 0 errors, and executable JAR packaging |
 | `python -m pytest` in isolated `.venv` | Passed: 3 tests, 0 failures |
 | `npm run build` | Passed: TypeScript compilation and Vite production build |
 | `npm test` | Passed: TypeScript check |
@@ -64,6 +68,7 @@ The requested `docs/PHASE_0_EXECUTION_PLAN.md` filename does not exist in the ap
 | Frontend Docker image build | Passed: `motogp-intelligence-web:phase0-fix` |
 | `docker compose config --quiet` | Passed |
 | `docker compose up -d --build` | Passed: all 5 containers started successfully |
+| Backend rebuild after Phase 1.1 changes | Passed: container healthy; Flyway schema version 2 applied |
 | Java health/readiness | Passed: HTTP 200 |
 | Python health | Passed: HTTP 200 |
 | Frontend and frontend-to-Java proxy | Passed: HTTP 200 |
@@ -72,6 +77,7 @@ The requested `docs/PHASE_0_EXECUTION_PLAN.md` filename does not exist in the ap
 | PostgreSQL foundation tables | Passed: 16 public tables including Flyway metadata |
 | pgvector extension | Passed: version 0.8.7 |
 | Redis | Passed: PONG |
+| Fixture provider registration | Passed: `fixture-historical` present in PostgreSQL |
 | Temporary-port Java/Python HTTP integration | Passed: Java status, authenticated Java-to-Python health, and Python health responses verified |
 
 The frontend dependency installation reported four npm audit findings. They are not yet addressed because dependency remediation is outside the Phase 0 architecture scope and must be reviewed before changing versions.
@@ -80,22 +86,29 @@ The frontend dependency installation reported four npm audit findings. They are 
 
 ```text
 cd backend/core && mvn -B verify
+cd backend/core && mvn -B clean verify
 cd ai && python3 -m venv .venv && .venv/bin/python -m pip install -e '.[test]' && .venv/bin/python -m pytest
 cd frontend/web && npm ci && npm run build && npm test
 docker compose config --quiet
 docker compose up -d --build
+docker compose build backend
+docker compose up -d backend
+cd backend/core && mvn -B verify
+cd ai && .venv/bin/python -m pytest
+cd frontend/web && npm run build && npm test
 docker build --file frontend/web/Dockerfile --tag motogp-intelligence-web:phase0-fix .
 docker compose exec -T redis redis-cli ping
-docker compose exec -T postgres psql -U motogp -d motogp -Atc "select count(*) from information_schema.tables where table_schema='public';"
+docker compose exec -T postgres psql -U motogp -d motogp -Atc "select version || ':' || success from flyway_schema_history order by installed_rank; select code from providers where code='fixture-historical'; select count(*) from information_schema.tables where table_schema='public';"
 ```
 
 ## Outstanding issues
 
-- Full Phase 0 runtime verification is complete. Future work remains limited to the documented Phase 1+ scope.
+- Phase 1.1 has no authorized external provider integration; the fixture provider is intentionally deterministic and test-only.
+- Historical race-data ingestion, ingestion job execution, raw payload capture, and public ingestion APIs remain future work.
 - Review the four npm audit findings before production use.
 - Replace the development fallback internal token in shared environments.
 - Add full authentication, domain APIs, and persistence entities in later phases.
 
 ## Next action
 
-Stop at Phase 0. Do not begin historical ingestion or other Phase 1 work until this foundation’s container-level verification is completed and reviewed.
+Stop at Phase 1.1. Do not begin external historical ingestion or other Phase 1 milestones until the provider boundary and mapping behavior are reviewed.

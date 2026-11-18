@@ -13,3 +13,7 @@
 - User authentication, JWT issuance, refresh-token rotation, and role management are not implemented in Phase 0.
 - The local Compose fallback token is intentionally development-only and must be replaced through environment configuration before shared or deployed use.
 - CI validates individual Java, Python, frontend, and frontend-container builds; full Compose integration remains an environment-level verification step.
+- Phase 1.1 includes only the deterministic `fixture-historical` provider; no external API, web-scraping adapter, or licensed historical dataset is integrated.
+- Provider identity mapping is an internal Java service boundary and is not yet exposed as a public or frontend API.
+- Identity mappings validate entity existence against the approved allowlisted domain tables; the generic `internal_id` design intentionally does not use polymorphic foreign keys.
+- Historical race results, sessions, laps, sectors, tyres, weather, standings, ingestion-job execution, and raw-payload capture are not implemented yet.
