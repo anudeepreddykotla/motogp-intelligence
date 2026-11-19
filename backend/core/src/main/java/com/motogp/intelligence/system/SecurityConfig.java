@@ -25,7 +25,8 @@ public class SecurityConfig {
                                 "/api/v1/events", "/api/v1/events/*", "/api/v1/events/*/sessions",
                                 "/api/v1/riders/compare",
                                 "/api/v1/sessions/*", "/api/v1/sessions/*/results",
-                                "/api/v1/sessions/*/laps", "/api/v1/sessions/*/positions").permitAll()
+                                "/api/v1/sessions/*/laps", "/api/v1/sessions/*/positions",
+                                "/api/v1/news", "/api/v1/news/*").permitAll()
                         .anyRequest().denyAll())
                 .build();
     }

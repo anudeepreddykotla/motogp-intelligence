@@ -1,6 +1,6 @@
 # MotoGP Intelligence Architecture
 
-Status: Approved baseline; Phase 2.1 news ingestion foundation implemented.
+Status: Approved baseline; Phase 2.2 news read APIs and frontend implemented on the Phase 2.1 ingestion foundation.
 
 ## Repository baseline
 
@@ -26,6 +26,8 @@ React + TypeScript <- Java public API -> Python internal API
                                       |
                               ML / RAG / agents
 ```
+
+The news frontend follows the same boundary: it calls Java read APIs through the existing `/api` proxy and never calls Python or the ingestion adapters directly. Java returns only persisted article metadata and permitted excerpts; publisher links remain external.
 
 The frontend calls Java only. Java validates requests, applies domain rules, queries structured analytics, and calls Python through authenticated versioned contracts. Python never receives unrestricted database credentials and does not own application business logic.
 

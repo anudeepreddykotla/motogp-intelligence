@@ -16,6 +16,8 @@ import com.motogp.intelligence.ingestion.ReferenceDataConflictException;
 import com.motogp.intelligence.ingestion.SourceRecordConflictException;
 import com.motogp.intelligence.race.HistoricalResourceNotFoundException;
 import com.motogp.intelligence.race.InvalidHistoricalQueryException;
+import com.motogp.intelligence.news.InvalidNewsQueryException;
+import com.motogp.intelligence.news.NewsResourceNotFoundException;
 
 import java.util.List;
 
@@ -23,6 +25,11 @@ import java.util.List;
 public class GlobalExceptionHandler {
     @ExceptionHandler(HistoricalResourceNotFoundException.class)
     ResponseEntity<ApiResponse<Void>> notFound(HistoricalResourceNotFoundException exception, HttpServletRequest request) {
+        return error(HttpStatus.NOT_FOUND, "NOT_FOUND", exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(NewsResourceNotFoundException.class)
+    ResponseEntity<ApiResponse<Void>> newsNotFound(NewsResourceNotFoundException exception, HttpServletRequest request) {
         return error(HttpStatus.NOT_FOUND, "NOT_FOUND", exception.getMessage(), request);
     }
 
@@ -34,6 +41,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidHistoricalQueryException.class)
     ResponseEntity<ApiResponse<Void>> invalidHistoricalQuery(InvalidHistoricalQueryException exception,
                                                                HttpServletRequest request) {
+        return error(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(InvalidNewsQueryException.class)
+    ResponseEntity<ApiResponse<Void>> invalidNewsQuery(InvalidNewsQueryException exception,
+                                                        HttpServletRequest request) {
         return error(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", exception.getMessage(), request);
     }
 

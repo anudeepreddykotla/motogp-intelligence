@@ -1,6 +1,6 @@
 # API Contracts
 
-Status: Approved baseline; Phase 2.1 news ingestion foundation implemented without a public news ingestion endpoint.
+Status: Approved baseline; Phase 2.2 read-only news APIs and frontend implemented. News ingestion remains operator-only.
 
 ## Public Java API
 
@@ -52,9 +52,19 @@ The comparison endpoint is intentionally session-scoped in this phase. It return
 
 Lap `observedAt` may be `null` when a provider supplies a lap time without an observation timestamp. The lap endpoint still returns HTTP 200 and JSON `null`; the service does not infer a timestamp from session start, lap number, or any other field.
 
+## News read APIs
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/api/v1/news?title={title}&publisher={publisher}&publishedFrom={instant}&publishedTo={instant}&limit=20&offset=0` | Browse persisted article metadata and permitted excerpts |
+| GET | `/api/v1/news/publishers` | Publishers represented by persisted articles |
+| GET | `/api/v1/news/{articleId}` | Retrieve one persisted article's public metadata |
+
+The news list uses the standard `{requestId,data,errors}` envelope and `data` has the existing `{items,limit,offset,hasNext}` shape. Results are ordered by publication timestamp descending with undated records last, then by article ID for stable pagination. `title` is a case-insensitive substring filter; `publisher` is a case-insensitive exact source-name filter; date filters are inclusive ISO-8601 instants. The service reads at most `limit + 1` records and never returns the extra boundary row. Missing publication timestamps, images, and permitted excerpts remain `null`. The API exposes no ingestion status, provider internals, full article content, or generated enrichment.
+
 ## News ingestion operations
 
-Phase 2.1 does not expose a public ingestion API. News ingestion is an operator-only Java operation using the `news-ingestion` profile and `motogp.news.run=true`. Configured sources are fetched through Java RSS/Atom adapters; only normalized metadata and permitted excerpts are stored. News listing and enrichment APIs remain future work.
+Phase 2.1/2.2 does not expose a public ingestion API. News ingestion is an operator-only Java operation using the `news-ingestion` profile and `motogp.news.run=true`. Configured sources are fetched through Java RSS/Atom adapters; only normalized metadata and permitted excerpts are stored. No production feed URLs are configured by default.
 
 ## Internal Python API
 

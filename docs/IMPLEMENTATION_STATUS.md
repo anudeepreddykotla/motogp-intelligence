@@ -4,9 +4,9 @@ Last reviewed: 2026-11-20
 
 ## Current state
 
-Status: Phase 0, Phase 1.1, Phase 1.2, Phase 1.3 hardening, Phase 1.4 historical API completeness, Phase 1.5 historical race frontend, Phase 1.6 synthetic historical demo dataset and controlled fixture refresh, and Phase 2.1 news ingestion foundation implemented.
+Status: Phase 0, Phase 1.1, Phase 1.2, Phase 1.3 hardening, Phase 1.4 historical API completeness, Phase 1.5 historical race frontend, Phase 1.6 synthetic historical demo dataset and controlled fixture refresh, Phase 2.1 news ingestion foundation, and Phase 2.2 news APIs/frontend implemented.
 
-The approved Java-first modular monolith, Python AI service, React frontend, Flyway migrations, Docker Compose configuration, and CI workflow are present. Phase 1.3 adds deterministic fixture-based historical race foundations: season affiliations, rider entries, sessions, classifications, laps, race positions, provenance, and read-only Java APIs. Phase 1.5 adds a responsive frontend journey over those APIs. Phase 1.6 expands the same fixture-provider ingestion flow into a multi-season synthetic demo archive. No sectors, tyres, weather, standings, telemetry, news ingestion, ML models, RAG, agents, simulation, live timing, or external provider integration has been implemented.
+The approved Java-first modular monolith, Python AI service, React frontend, Flyway migrations, Docker Compose configuration, and CI workflow are present. Phase 1.3 adds deterministic fixture-based historical race foundations: season affiliations, rider entries, sessions, classifications, laps, race positions, provenance, and read-only Java APIs. Phase 1.5 adds a responsive frontend journey over those APIs. Phase 1.6 expands the same fixture-provider ingestion flow into a multi-season synthetic demo archive. No sectors, tyres, weather, standings, telemetry, ML models, RAG, agents, simulation, live timing, or external provider integration has been implemented; Phase 2.1/2.2 news ingestion, read APIs, and browsing are implemented.
 
 The requested `docs/PHASE_0_EXECUTION_PLAN.md` filename does not exist in the approved documentation set. The equivalent plan is `docs/DEVELOPMENT_PLAN.md`, which remains the source used for Phase 0 sequencing.
 
@@ -42,6 +42,7 @@ The requested `docs/PHASE_0_EXECUTION_PLAN.md` filename does not exist in the ap
 - Explicit fixture refresh service that reconciles only `fixture-historical`-owned race, relationship, and obsolete reference records before reusing the normal ingestion services.
 - Disabled-by-default `fixture-ingestion` profile with `motogp.ingestion.run-fixture=true` one-shot runner; normal startup never triggers ingestion.
 - Java news module with configurable RSS/Atom adapter registry, XML-safe normalization, canonical URL/fingerprint deduplication, source health, ingestion attempts, and permitted metadata/excerpt persistence.
+- Read-only Java news APIs for filtered/paginated article browsing, publisher discovery, and article details, plus the React news list/detail experience using the Java `/api` proxy.
 - Disabled-by-default `news-ingestion` profile with `motogp.news.run=true` one-shot runner and opt-in scheduler; no production feed URLs are configured.
 
 ### Python
@@ -118,6 +119,10 @@ The requested `docs/PHASE_0_EXECUTION_PLAN.md` filename does not exist in the ap
 | Phase 1.6 Compose fixture refresh | Passed against the existing Compose database without volume reset: one-shot runner completed successfully; second run completed successfully; final counts are 2 seasons, 2 manufacturers, 4 teams, 10 riders, 2 circuits, 4 events, 12 sessions, 120 classifications, 400 laps, and 440 race positions |
 | Phase 2.1 news unit verification | Passed: 5 tests covering RSS/Atom normalization, timestamps, image metadata, fallback fingerprints, malformed XML, duplicate collapse, and source failure handling |
 | Phase 2.1 PostgreSQL news integration | Passed explicitly against PostgreSQL 16.16: 1 test; Flyway V4 applied, two fixture articles persisted, duplicate ingestion wrote zero new articles, source health and PARTIAL attempts recorded |
+| Phase 2.2 news API/controller verification | Passed: 8 focused MockMvc tests covering full, partial, empty, filtered, nullable, malformed-ID, and not-found responses; included in `mvn -B clean verify` |
+| Phase 2.2 PostgreSQL news read verification | Passed explicitly against isolated PostgreSQL 16.16: 1 test covering ingestion-backed filtering, publisher discovery, stable ordering, detail lookup, and pagination boundary |
+| Phase 2.2 frontend verification | Passed: `npm test` TypeScript check and `npm run build` Vite production build; no separate frontend test runner is configured |
+| Phase 2.2 Compose/runtime verification | Passed: backend and frontend images rebuilt; readiness HTTP 200, frontend `/news` HTTP 200, and `/api/v1/news?limit=20&offset=0` HTTP 200 with persisted metadata |
 
 The frontend dependency installation reported four npm audit findings. They are not yet addressed because dependency remediation is outside the Phase 0 architecture scope and must be reviewed before changing versions.
 

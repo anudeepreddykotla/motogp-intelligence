@@ -13,6 +13,7 @@ export type SessionResult = { id: string; sessionId: string; riderId: string; ri
 export type Lap = { id: string; sessionResultId: string; sessionId: string; riderId: string; riderName: string | null; lapNumber: number | null; lapTimeMs: number | null; valid: boolean | null; observedAt: string | null }
 export type Position = { id: string; sessionResultId: string; sessionId: string; riderId: string; riderName: string | null; lapNumber: number | null; position: number | null; observedAt: string | null }
 export type Comparison = { sessionId: string; riderId: string; riderName: string | null; classificationPosition: number | null; classificationStatus: string | null; lapsCompleted: number | null; totalTimeMs: number | null; points: number | null }
+export type NewsArticle = { id: string; title: string; publisherName: string | null; publishedAt: string | null; permittedExcerpt: string | null; imageUrl: string | null; originalUrl: string | null }
 
 async function get<T>(path: string): Promise<T> {
   const response = await fetch(path, { headers: { Accept: 'application/json' } })
@@ -49,4 +50,14 @@ export const api = {
     riderIds.forEach((riderId) => params.append('riderIds', riderId))
     return get<Comparison[]>(`/api/v1/riders/compare?${params.toString()}`)
   },
+  newsPublishers: () => get<string[]>('/api/v1/news/publishers'),
+  news: (filters: { title?: string; publisher?: string; publishedFrom?: string; publishedTo?: string; limit: number; offset: number }) => {
+    const params = new URLSearchParams({ limit: String(filters.limit), offset: String(filters.offset) })
+    if (filters.title?.trim()) params.set('title', filters.title.trim())
+    if (filters.publisher?.trim()) params.set('publisher', filters.publisher.trim())
+    if (filters.publishedFrom) params.set('publishedFrom', filters.publishedFrom)
+    if (filters.publishedTo) params.set('publishedTo', filters.publishedTo)
+    return get<Paginated<NewsArticle>>(`/api/v1/news?${params.toString()}`)
+  },
+  newsArticle: (articleId: string) => get<NewsArticle>(`/api/v1/news/${encodeURIComponent(articleId)}`),
 }
