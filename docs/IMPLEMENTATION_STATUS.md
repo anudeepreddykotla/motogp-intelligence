@@ -4,9 +4,9 @@ Last reviewed: 2026-11-19
 
 ## Current state
 
-Status: Phase 0, Phase 1.1, Phase 1.2, Phase 1.3 hardening, and Phase 1.4 historical API completeness implemented.
+Status: Phase 0, Phase 1.1, Phase 1.2, Phase 1.3 hardening, Phase 1.4 historical API completeness, and Phase 1.5 historical race frontend implemented.
 
-The approved Java-first modular monolith, Python AI service, React frontend shell, Flyway migrations, Docker Compose configuration, and CI workflow are present. Phase 1.3 adds deterministic fixture-based historical race foundations: season affiliations, rider entries, sessions, classifications, laps, race positions, provenance, and read-only Java APIs. No sectors, tyres, weather, standings, telemetry, news ingestion, ML models, RAG, agents, simulation, live timing, or external provider integration has been implemented.
+The approved Java-first modular monolith, Python AI service, React frontend, Flyway migrations, Docker Compose configuration, and CI workflow are present. Phase 1.3 adds deterministic fixture-based historical race foundations: season affiliations, rider entries, sessions, classifications, laps, race positions, provenance, and read-only Java APIs. Phase 1.5 adds a responsive frontend journey over those APIs. No sectors, tyres, weather, standings, telemetry, news ingestion, ML models, RAG, agents, simulation, live timing, or external provider integration has been implemented.
 
 The requested `docs/PHASE_0_EXECUTION_PLAN.md` filename does not exist in the approved documentation set. The equivalent plan is `docs/DEVELOPMENT_PLAN.md`, which remains the source used for Phase 0 sequencing.
 
@@ -52,9 +52,11 @@ The requested `docs/PHASE_0_EXECUTION_PLAN.md` filename does not exist in the ap
 - React + TypeScript + Vite application.
 - React Router and TanStack Query.
 - Backend API client.
-- Minimal dark application shell.
-- Loading, unavailable, and error states.
-- No mock MotoGP statistics.
+- Responsive historical race exploration: seasons, events, circuit/event details, sessions, classifications, rider lap timing, position progression, and same-session rider comparison.
+- React Query API client using only the existing `/api` proxy and Java response envelopes.
+- Explicit loading, empty, unavailable, error, and refresh states with persisted-data and fixture/demo labelling.
+- Accessible controls, responsive tables/cards, and a lightweight SVG position chart without adding chart dependencies.
+- No hardcoded MotoGP entities or race statistics.
 
 ### Infrastructure
 
@@ -100,6 +102,9 @@ The requested `docs/PHASE_0_EXECUTION_PLAN.md` filename does not exist in the ap
 | Temporary-port Java/Python HTTP integration | Passed: Java status, authenticated Java-to-Python health, and Python health responses verified |
 | Phase 1.4 backend Docker rebuild and runtime checks | Passed: backend image rebuilt, readiness returned HTTP 200, Compose configuration validated, and `/api/v1/seasons` and `/api/v1/events` returned HTTP 200 with persisted fixture data |
 | Phase 1.4 pagination metadata tests | Passed: 14 controller tests including full-page, partial-final-page, and empty-page cases for laps and positions; `hasNext` uses the extra-row boundary and returned items remain limited to the requested page size |
+| Phase 1.5 frontend TypeScript check | Passed: `npm test` |
+| Phase 1.5 frontend production build | Passed: `npm run build` with Vite 6.4.6 |
+| Phase 1.5 frontend Docker/runtime verification | Passed: frontend image built with the existing Dockerfile, container returned HTTP 200, and `/api/v1/seasons?limit=100&offset=0` proxied through Nginx with HTTP 200 and persisted data |
 
 The frontend dependency installation reported four npm audit findings. They are not yet addressed because dependency remediation is outside the Phase 0 architecture scope and must be reviewed before changing versions.
 

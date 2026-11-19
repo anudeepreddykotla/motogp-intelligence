@@ -24,3 +24,4 @@
 - Lap `observedAt` is intentionally nullable when the provider supplies timing without an observation timestamp. API consumers receive JSON `null`; timestamps are not inferred.
 - Phase 1.4 completes read-only season, event, session, classification, lap, position, and session-scoped rider-comparison APIs. All historical list responses expose limit/offset/hasNext metadata but do not expose total counts or cursor links.
 - Comparison is limited to persisted classifications for one session and 2–4 riders; cross-event/circuit analytics and derived performance statistics belong to a later analytics phase.
+- Phase 1.5 provides a read-only responsive frontend for the historical race journey. It uses the Java `/api` proxy, labels fixture/demo session data when reported, and does not expose a separate frontend pagination control when an API response reports `hasNext`.

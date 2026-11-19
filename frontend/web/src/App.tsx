@@ -1,75 +1,59 @@
-import { useQuery } from '@tanstack/react-query'
-import { NavLink, Route, Routes } from 'react-router-dom'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link, NavLink, Route, Routes, useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useState, type ReactNode } from 'react'
 
-import { api } from './api'
+import { api, type Event, type Lap, type Position, type SessionResult } from './api'
 import './styles.css'
 
-function StatusCard({ label, value, detail }: { label: string; value: string; detail: string }) {
-  return (
-    <article className="status-card">
-      <span className="eyebrow">{label}</span>
-      <strong>{value}</strong>
-      <span className="muted">{detail}</span>
-    </article>
-  )
-}
+const display = (value: string | number | null | undefined, fallback = 'Not available') => value === null || value === undefined || value === '' ? fallback : String(value)
+const dateTime = (value: string | null | undefined) => { if (!value) return 'Time not available'; const date = new Date(value); return Number.isNaN(date.valueOf()) ? value : date.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) }
+const millis = (value: number | null | undefined) => { if (value === null || value === undefined) return '—'; const minutes = Math.floor(value / 60000); const seconds = ((value % 60000) / 1000).toFixed(3).padStart(6, '0'); return minutes > 0 ? `${minutes}:${seconds}` : `${seconds}s` }
+
+function RefreshButton() { const queryClient = useQueryClient(); return <button className="button button-quiet" onClick={() => queryClient.invalidateQueries()} type="button">Refresh data</button> }
+function Badge({ children, tone = '' }: { children: ReactNode; tone?: string }) { return <span className={`badge ${tone}`}>{children}</span> }
+function PageHeader({ eyebrow, title, description, action }: { eyebrow: string; title: string; description?: string; action?: ReactNode }) { return <div className="page-header"><div><p className="eyebrow">{eyebrow}</p><h1>{title}</h1>{description && <p className="lede">{description}</p>}</div>{action}</div> }
+function LoadingState({ label = 'Loading persisted race data…' }: { label?: string }) { return <div className="state-card" role="status"><span className="loader" />{label}</div> }
+function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) { return <div className="state-card error-state" role="alert"><strong>Data unavailable</strong><span>{message}</span>{onRetry && <button className="button" onClick={onRetry} type="button">Try again</button>}</div> }
+function EmptyState({ title, detail }: { title: string; detail: string }) { return <div className="state-card"><strong>{title}</strong><span>{detail}</span></div> }
+function OriginNote({ dataMode }: { dataMode?: string | null }) { const mode = dataMode?.toUpperCase(); return <div className="origin-note"><span className="origin-dot" />{mode === 'FIXTURE' || mode === 'DEMO' ? 'Fixture/demo data · persisted by the Java service' : 'Persisted data · source mode is reported by the Java service'}</div> }
 
 function Dashboard() {
-  const backend = useQuery({ queryKey: ['system-status'], queryFn: api.systemStatus })
-  const python = useQuery({ queryKey: ['python-health'], queryFn: api.pythonHealth })
-
-  return (
-    <main className="page">
-      <section className="hero">
-        <p className="eyebrow">PHASE 0 FOUNDATION</p>
-        <h1>MotoGP Intelligence</h1>
-        <p className="lede">A clear starting point for trusted race intelligence.</p>
-      </section>
-      <section className="status-grid" aria-label="Service status">
-        {backend.isPending && <StatusCard label="Java core" value="Loading" detail="Checking backend health…" />}
-        {backend.isError && <StatusCard label="Java core" value="Unavailable" detail="Backend health could not be reached." />}
-        {backend.data && <StatusCard label="Java core" value={backend.data.status} detail="Public API foundation" />}
-        {python.isPending && <StatusCard label="Python AI" value="Loading" detail="Checking internal contract…" />}
-        {python.isError && <StatusCard label="Python AI" value="Unavailable" detail="AI service is not available yet." />}
-        {python.data && <StatusCard label="Python AI" value={python.data.status} detail={`Contract ${python.data.contractVersion}`} />}
-      </section>
-      <section className="notice">
-        <h2>No race data loaded</h2>
-        <p>Historical, live, news, prediction, and AI features are intentionally unavailable during Phase 0.</p>
-      </section>
-    </main>
-  )
+  const backend = useQuery({ queryKey: ['system-status'], queryFn: api.systemStatus }); const python = useQuery({ queryKey: ['python-health'], queryFn: api.pythonHealth })
+  return <main className="page"><section className="hero hero-home"><p className="eyebrow">HISTORICAL RACE INTELLIGENCE</p><h1>Read the race<br /><em>as it happened.</em></h1><p className="lede">Explore persisted seasons, events, sessions, classifications, lap timing and position progression from one focused workspace.</p><Link className="button button-primary" to="/races">Explore historical races <span>→</span></Link></section><section className="home-grid"><article className="feature-card feature-main"><span className="feature-index">01</span><div><p className="eyebrow">THE ARCHIVE</p><h2>Every turn has a context.</h2><p>Move from a season to a circuit, then into the sessions and records that were actually stored.</p><Link to="/races">Open the archive →</Link></div></article><article className="feature-card"><span className="feature-index">02</span><p className="eyebrow">THE DATA</p><h2>Nothing invented.</h2><p>Unavailable values stay unavailable. Fixture records are labelled clearly instead of being presented as official history.</p></article><article className="feature-card status-feature"><span className="feature-index">03</span><p className="eyebrow">SYSTEM STATUS</p><div className="mini-status"><span className={`status-pip ${backend.data?.status === 'UP' ? 'up' : ''}`} />Java core <strong>{backend.isPending ? 'Checking' : backend.isError ? 'Unavailable' : display(backend.data?.status)}</strong></div><div className="mini-status"><span className={`status-pip ${python.data?.status === 'UP' ? 'up' : ''}`} />AI service <strong>{python.isPending ? 'Checking' : python.isError ? 'Unavailable' : display(python.data?.status)}</strong></div></article></section></main>
 }
 
-function Unavailable({ title }: { title: string }) {
-  return (
-    <main className="page">
-      <p className="eyebrow">NOT AVAILABLE IN PHASE 0</p>
-      <h1>{title}</h1>
-      <p className="lede">This capability will be enabled only when its approved backend contract and real data source are implemented.</p>
-    </main>
-  )
+function SeasonsPage() {
+  const query = useQuery({ queryKey: ['seasons'], queryFn: api.seasons })
+  return <main className="page"><PageHeader eyebrow="THE ARCHIVE / SEASONS" title="Choose a season" description="Start with a championship year, then narrow the archive to one event." action={<RefreshButton />} />{query.isPending && <LoadingState />}{query.isError && <ErrorState message={query.error.message} onRetry={() => query.refetch()} />}{query.data?.items.length === 0 && <EmptyState title="No seasons available" detail="The Java service has not exposed any persisted seasons yet." />}{query.data && query.data.items.length > 0 && <div className="season-grid">{query.data.items.map((season) => <Link className="season-card" key={season.id} to={`/races/seasons/${season.id}`}><span className="season-year">{display(season.year)}</span><span className="season-name">{display(season.championship)}</span><span className="arrow">↗</span></Link>)}</div>}{query.data?.hasNext && <p className="pagination-note">More seasons are available beyond the first page.</p>}</main>
 }
 
-export function App() {
-  return (
-    <div className="app-shell">
-      <header className="topbar">
-        <NavLink className="brand" to="/">MotoGP Intelligence</NavLink>
-        <nav aria-label="Primary navigation">
-          <NavLink to="/">Overview</NavLink>
-          <NavLink to="/races">Races</NavLink>
-          <NavLink to="/news">News</NavLink>
-          <NavLink to="/ai">AI Engineer</NavLink>
-        </nav>
-      </header>
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/races" element={<Unavailable title="Historical races" />} />
-        <Route path="/news" element={<Unavailable title="MotoGP news" />} />
-        <Route path="/ai" element={<Unavailable title="AI Race Engineer" />} />
-        <Route path="*" element={<Unavailable title="Page not found" />} />
-      </Routes>
-    </div>
-  )
+function SeasonPage() {
+  const { seasonId = '' } = useParams(); const navigate = useNavigate(); const season = useQuery({ queryKey: ['season', seasonId], queryFn: () => api.season(seasonId), enabled: Boolean(seasonId) }); const events = useQuery({ queryKey: ['events', seasonId], queryFn: () => api.events(seasonId), enabled: Boolean(seasonId) })
+  return <main className="page"><BackLink onClick={() => navigate('/races')} label="All seasons" />{season.isPending || events.isPending ? <LoadingState /> : season.isError ? <ErrorState message={season.error.message} onRetry={() => season.refetch()} /> : events.isError ? <ErrorState message={events.error.message} onRetry={() => events.refetch()} /> : <><PageHeader eyebrow={`${display(season.data?.year)} / ${display(season.data?.championship)}`} title="Select an event" description="Choose a round to see its circuit, schedule and available sessions." action={<RefreshButton />} />{events.data?.items.length === 0 ? <EmptyState title="No events available" detail="This season has no persisted event records." /> : <div className="event-list">{events.data?.items.map((event) => <EventCard event={event} key={event.id} />)}</div>}</>}</main>
 }
+
+function EventCard({ event }: { event: Event }) { return <Link className="event-card" to={`/races/events/${event.id}`}><div className="event-round">{event.roundNumber ? `ROUND ${String(event.roundNumber).padStart(2, '0')}` : 'EVENT'}</div><div className="event-card-main"><h2>{display(event.name)}</h2><p>{display(event.circuitName)} <span>·</span> {display(event.countryCode, 'Country not available')}</p></div><div className="event-card-date">{event.scheduledStartAt ? dateTime(event.scheduledStartAt) : 'Date not available'} <span className="arrow">↗</span></div></Link> }
+
+function EventPage() {
+  const { eventId = '' } = useParams(); const navigate = useNavigate(); const event = useQuery({ queryKey: ['event', eventId], queryFn: () => api.event(eventId), enabled: Boolean(eventId) }); const sessions = useQuery({ queryKey: ['sessions', eventId], queryFn: () => api.sessions(eventId), enabled: Boolean(eventId) })
+  return <main className="page"><BackLink onClick={() => navigate(-1)} label="Back" />{event.isPending || sessions.isPending ? <LoadingState /> : event.isError ? <ErrorState message={event.error.message} onRetry={() => event.refetch()} /> : sessions.isError ? <ErrorState message={sessions.error.message} onRetry={() => sessions.refetch()} /> : <><PageHeader eyebrow={`${display(event.data?.seasonYear)} / ROUND ${display(event.data?.roundNumber, '—')}`} title={display(event.data?.name)} description="Event context and the sessions available in the archive." action={<RefreshButton />} />{event.data && <div className="detail-strip"><div><span className="eyebrow">CIRCUIT</span><strong>{display(event.data.circuitName)}</strong><span>{display(event.data.countryCode)}</span></div><div><span className="eyebrow">SCHEDULE</span><strong>{event.data.scheduledStartAt ? dateTime(event.data.scheduledStartAt) : 'Not available'}</strong><span>{display(event.data.timezone)}</span></div><div><span className="eyebrow">CHAMPIONSHIP</span><strong>{display(event.data.championship)}</strong><span>Persisted event record</span></div></div>}<div className="section-heading"><div><p className="eyebrow">THE WEEKEND</p><h2>Available sessions</h2></div></div>{sessions.data?.items.length === 0 ? <EmptyState title="No sessions available" detail="This event has no persisted session records." /> : <div className="session-grid">{sessions.data?.items.map((session) => <Link className="session-card" key={session.id} to={`/races/sessions/${session.id}`}><div className="session-icon">{session.sessionType?.slice(0, 2) ?? '—'}</div><div><h3>{display(session.sessionType)}</h3><p>{session.scheduledStartAt ? dateTime(session.scheduledStartAt) : 'Schedule not available'}</p></div><span className="arrow">→</span>{session.dataMode && <Badge tone="badge-muted">{session.dataMode}</Badge>}</Link>)}</div>}</>}</main>
+}
+
+function SessionPage() {
+  const { sessionId = '' } = useParams(); const navigate = useNavigate(); const session = useQuery({ queryKey: ['session', sessionId], queryFn: () => api.session(sessionId), enabled: Boolean(sessionId) }); const results = useQuery({ queryKey: ['results', sessionId], queryFn: () => api.results(sessionId), enabled: Boolean(sessionId) }); const [riderId, setRiderId] = useState(''); const [compareIds, setCompareIds] = useState(['', ''])
+  useEffect(() => { const items = results.data?.items ?? []; if (items.length > 0 && !items.some((item) => item.riderId === riderId)) setRiderId(items[0].riderId); if (items.length > 1 && (!compareIds[0] || !items.some((item) => item.riderId === compareIds[0]))) setCompareIds([items[0].riderId, items[1].riderId]) }, [results.data, riderId, compareIds])
+  const laps = useQuery({ queryKey: ['laps', sessionId, riderId], queryFn: () => api.laps(sessionId, riderId), enabled: Boolean(sessionId && riderId) }); const positions = useQuery({ queryKey: ['positions', sessionId, riderId], queryFn: () => api.positions(sessionId, riderId), enabled: Boolean(sessionId && riderId) }); const comparison = useQuery({ queryKey: ['compare', sessionId, compareIds], queryFn: () => api.compare(sessionId, compareIds), enabled: Boolean(sessionId && compareIds[0] && compareIds[1] && compareIds[0] !== compareIds[1]) }); const selectedResult = results.data?.items.find((item) => item.riderId === riderId)
+  return <main className="page session-page"><BackLink onClick={() => navigate(-1)} label="Back to event" />{session.isPending || results.isPending ? <LoadingState /> : session.isError ? <ErrorState message={session.error.message} onRetry={() => session.refetch()} /> : results.isError ? <ErrorState message={results.error.message} onRetry={() => results.refetch()} /> : <><PageHeader eyebrow={`${display(session.data?.eventName)} / SESSION`} title={display(session.data?.sessionType)} description={session.data?.scheduledStartAt ? dateTime(session.data.scheduledStartAt) : 'Session schedule not available'} action={<RefreshButton />} />{session.data && <div className="session-meta"><OriginNote dataMode={session.data.dataMode} /><span>{session.data.startedAt ? `Started ${dateTime(session.data.startedAt)}` : 'Start time not available'}</span><span>{session.data.endedAt ? `Ended ${dateTime(session.data.endedAt)}` : 'End time not available'}</span></div>}<section className="panel classification-panel"><div className="section-heading"><div><p className="eyebrow">CLASSIFICATION</p><h2>Who finished where</h2></div><Badge>{results.data?.items.length ?? 0} riders</Badge></div>{results.data?.items.length === 0 ? <EmptyState title="No classification available" detail="This session has no persisted rider results." /> : <div className="table-wrap"><table><thead><tr><th>Pos</th><th>Rider</th><th>Team</th><th>Status</th><th>Laps</th><th>Time</th><th>Points</th><th><span className="sr-only">Inspect</span></th></tr></thead><tbody>{results.data?.items.map((result) => <tr className={result.riderId === riderId ? 'selected-row' : ''} key={result.id}><td className="position-cell">{display(result.classificationPosition, '—')}</td><td><button className="table-link" onClick={() => setRiderId(result.riderId)} type="button">{display(result.riderName)}</button></td><td>{display(result.teamName)}</td><td><Badge tone={result.classificationStatus === 'CLASSIFIED' ? 'badge-green' : 'badge-muted'}>{display(result.classificationStatus)}</Badge></td><td>{display(result.lapsCompleted, '—')}</td><td>{millis(result.totalTimeMs)}</td><td>{display(result.points, '—')}</td><td><button className="inspect-button" onClick={() => setRiderId(result.riderId)} type="button">Inspect</button></td></tr>)}</tbody></table></div>}</section>{selectedResult && <RiderAnalysis result={selectedResult} laps={laps.data?.items ?? []} positions={positions.data?.items ?? []} lapsQuery={laps} positionsQuery={positions} />}<ComparisonPanel results={results.data?.items ?? []} compareIds={compareIds} setCompareIds={setCompareIds} comparison={comparison} /></>}</main>
+}
+
+type QueryState = { isPending: boolean; isError: boolean; error: Error | null; refetch: () => unknown }
+function RiderAnalysis({ result, laps, positions, lapsQuery, positionsQuery }: { result: SessionResult; laps: Lap[]; positions: Position[]; lapsQuery: QueryState; positionsQuery: QueryState }) { return <section className="analysis-grid"><article className="panel"><div className="section-heading"><div><p className="eyebrow">RIDER ANALYSIS</p><h2>{display(result.riderName)}</h2></div><Badge tone="badge-green">{display(result.classificationStatus)}</Badge></div><div className="metric-grid"><div><span>Classification</span><strong>{display(result.classificationPosition, '—')}</strong></div><div><span>Completed laps</span><strong>{display(result.lapsCompleted, '—')}</strong></div><div><span>Race time</span><strong>{millis(result.totalTimeMs)}</strong></div><div><span>Points</span><strong>{display(result.points, '—')}</strong></div></div><div className="subsection-heading"><h3>Lap-by-lap timing</h3><span>{laps.length} records</span></div>{lapsQuery.isPending ? <LoadingState label="Loading lap records…" /> : lapsQuery.isError ? <ErrorState message={lapsQuery.error?.message ?? 'Lap data is unavailable.'} onRetry={() => lapsQuery.refetch()} /> : laps.length === 0 ? <EmptyState title="No lap timing available" detail="The provider did not supply lap records for this rider and session." /> : <div className="lap-table">{laps.map((lap) => <div className="lap-row" key={lap.id}><span>{display(lap.lapNumber, '—')}</span><strong>{millis(lap.lapTimeMs)}</strong><span className={lap.valid === false ? 'invalid' : 'valid'}>{lap.valid === false ? 'Invalid' : lap.valid === true ? 'Valid' : 'Status unavailable'}</span><time>{lap.observedAt ? dateTime(lap.observedAt) : 'Observed time unavailable'}</time></div>)}</div>}</article><article className="panel position-panel"><div className="section-heading"><div><p className="eyebrow">RACE FLOW</p><h2>Position progression</h2></div><span className="muted">Lap / position</span></div>{positionsQuery.isPending ? <LoadingState label="Loading position records…" /> : positionsQuery.isError ? <ErrorState message={positionsQuery.error?.message ?? 'Position data is unavailable.'} onRetry={() => positionsQuery.refetch()} /> : positions.length === 0 ? <EmptyState title="No position snapshots" detail="Position progression was not supplied for this rider and session." /> : <PositionChart positions={positions} />}</article></section> }
+
+function PositionChart({ positions }: { positions: Position[] }) { const points = positions.filter((point) => point.lapNumber !== null && point.position !== null); if (points.length === 0) return <EmptyState title="No plottable positions" detail="The stored position records do not contain lap and position values." />; const width = 640; const height = 260; const maxPosition = Math.max(...points.map((point) => point.position ?? 1), 1); const y = (position: number) => 28 + ((position - 1) / Math.max(maxPosition - 1, 1)) * (height - 56); const x = (index: number) => (index / Math.max(points.length - 1, 1)) * (width - 56) + 28; const chartPoints = points.map((point, index) => `${x(index)},${y(point.position ?? maxPosition)}`).join(' '); return <div className="chart-wrap"><svg className="position-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Race position progression chart"><line x1="28" y1="28" x2="28" y2={height - 28} /><line x1="28" y1={height - 28} x2={width - 28} y2={height - 28} /><polyline points={chartPoints} fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />{points.map((point, index) => <circle key={point.id} cx={x(index)} cy={y(point.position ?? maxPosition)} r="4" />)}</svg><div className="chart-legend"><span>Lap {display(points[0].lapNumber)}</span><strong>Position 1 is higher</strong><span>Lap {display(points[points.length - 1].lapNumber)}</span></div><p className="chart-note">Only stored race-position snapshots are shown. No values are inferred between records.</p></div> }
+
+function ComparisonPanel({ results, compareIds, setCompareIds, comparison }: { results: SessionResult[]; compareIds: string[]; setCompareIds: (ids: string[]) => void; comparison: QueryState & { data?: { riderId: string; riderName: string | null; classificationPosition: number | null; classificationStatus: string | null; lapsCompleted: number | null; totalTimeMs: number | null; points: number | null }[] }; }) { return <section className="panel compare-panel"><div className="section-heading"><div><p className="eyebrow">RIDER COMPARISON</p><h2>Put two classifications side by side</h2></div><Badge tone="badge-muted">Same session only</Badge></div><div className="compare-controls"><label>Rider one<select value={compareIds[0]} onChange={(event) => setCompareIds([event.target.value, compareIds[1]])}><option value="">Choose a rider</option>{results.map((result) => <option key={result.riderId} value={result.riderId}>{display(result.riderName)}</option>)}</select></label><span className="versus">VS</span><label>Rider two<select value={compareIds[1]} onChange={(event) => setCompareIds([compareIds[0], event.target.value])}><option value="">Choose a rider</option>{results.map((result) => <option key={result.riderId} value={result.riderId}>{display(result.riderName)}</option>)}</select></label></div>{compareIds[0] && compareIds[1] && compareIds[0] === compareIds[1] && <p className="inline-error">Choose two different riders to compare.</p>}{comparison.isPending && <LoadingState label="Loading comparison…" />}{comparison.isError && <ErrorState message={comparison.error?.message ?? 'Comparison is unavailable.'} onRetry={() => comparison.refetch()} />}{comparison.data && comparison.data.length > 0 && <div className="comparison-grid">{comparison.data.map((rider) => <div className="comparison-card" key={rider.riderId}><span className="eyebrow">RIDER</span><h3>{display(rider.riderName)}</h3><div><span>Position</span><strong>{display(rider.classificationPosition, '—')}</strong></div><div><span>Status</span><strong>{display(rider.classificationStatus)}</strong></div><div><span>Laps</span><strong>{display(rider.lapsCompleted, '—')}</strong></div><div><span>Time</span><strong>{millis(rider.totalTimeMs)}</strong></div><div><span>Points</span><strong>{display(rider.points, '—')}</strong></div></div>)}</div>}{!comparison.isPending && !comparison.isError && compareIds[0] && compareIds[1] && compareIds[0] !== compareIds[1] && comparison.data?.length === 0 && <EmptyState title="No comparison rows" detail="Neither selected rider has a persisted classification in this session." />}</section> }
+
+function BackLink({ label, onClick }: { label: string; onClick: () => void }) { return <button className="back-link" onClick={onClick} type="button">← {label}</button> }
+function Unavailable({ title }: { title: string }) { return <main className="page"><p className="eyebrow">NOT AVAILABLE IN THIS PHASE</p><h1>{title}</h1><p className="lede">This capability is not part of the historical race API yet.</p></main> }
+
+export function App() { return <div className="app-shell"><header className="topbar"><Link className="brand" to="/"><span className="brand-mark">M</span><span>MotoGP <i>Intelligence</i></span></Link><nav aria-label="Primary navigation"><NavLink to="/">Overview</NavLink><NavLink to="/races">Historical races</NavLink><NavLink to="/news">News</NavLink><NavLink to="/ai">AI Engineer</NavLink></nav></header><Routes><Route path="/" element={<Dashboard />} /><Route path="/races" element={<SeasonsPage />} /><Route path="/races/seasons/:seasonId" element={<SeasonPage />} /><Route path="/races/events/:eventId" element={<EventPage />} /><Route path="/races/sessions/:sessionId" element={<SessionPage />} /><Route path="/news" element={<Unavailable title="MotoGP news" />} /><Route path="/ai" element={<Unavailable title="AI Race Engineer" />} /><Route path="*" element={<Unavailable title="Page not found" />} /></Routes></div> }
