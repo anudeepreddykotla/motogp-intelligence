@@ -42,7 +42,7 @@ class RaceDataIngestionServiceTest {
         lenient().when(runs.ensureHistoricalJob(PROVIDER)).thenReturn(UUID.randomUUID());
         lenient().when(runs.startAttempt(any(), any())).thenReturn(UUID.randomUUID());
         lenient().when(persistence.persist(eq(PROVIDER), anyList(), anyList(), anyList(), anyMap(), anyMap(), anyMap(), anyMap()))
-                .thenReturn(new RaceDataIngestionResult(PROVIDER, 16, 16));
+                .thenReturn(new RaceDataIngestionResult(PROVIDER, 960, 16));
         lenient().when(identityStore.findMapping(eq(PROVIDER_ID), any(), anyString())).thenAnswer(invocation -> {
             ReferenceEntityType type = invocation.getArgument(1);
             String externalId = invocation.getArgument(2);
@@ -61,8 +61,8 @@ class RaceDataIngestionServiceTest {
     void loadsAllRaceRecordsAndRecordsSuccessfulAttempt() {
         RaceDataIngestionResult result = service.ingest(PROVIDER);
 
-        assertThat(result.recordsSeen()).isEqualTo(16);
-        verify(runs).finishAttempt(any(), eq("SUCCEEDED"), eq(16), eq(16), any());
+        assertThat(result.recordsSeen()).isEqualTo(960);
+        verify(runs).finishAttempt(any(), eq("SUCCEEDED"), eq(960), eq(16), any());
     }
 
     @Test

@@ -34,28 +34,30 @@ class HistoricalRaceReadStoreComposeIntegrationTest {
         raceIngestion.ingest(FixtureHistoricalDataProvider.CODE);
 
         var seasons = readStore.seasons(10, 0);
-        assertThat(seasons).isNotEmpty();
+        assertThat(seasons).hasSize(2);
         UUID seasonId = seasons.get(0).id();
         assertThat(readStore.season(seasonId)).isPresent();
 
         var events = readStore.events(seasonId, 10, 0);
-        assertThat(events).isNotEmpty();
+        assertThat(events).hasSize(2);
         UUID eventId = events.get(0).id();
         assertThat(readStore.event(eventId)).isPresent();
 
         var sessions = readStore.sessions(eventId, 10, 0);
         assertThat(sessions).isNotEmpty();
-        UUID sessionId = sessions.get(0).id();
+        assertThat(sessions).hasSize(3);
+        var raceSession = sessions.stream().filter(session -> "RACE".equals(session.sessionType())).findFirst().orElseThrow();
+        UUID sessionId = raceSession.id();
         assertThat(readStore.session(sessionId)).isPresent();
 
         var results = readStore.results(sessionId, null, 10, 0);
         assertThat(results).isNotEmpty();
         UUID riderId = results.get(0).riderId();
         assertThat(readStore.laps(sessionId, riderId, 2, 0)).hasSize(3);
-        assertThat(readStore.laps(sessionId, riderId, 10, 0))
+        assertThat(readStore.laps(sessionId, riderId, 10, 0)).hasSize(10)
                 .extracting(HistoricalRaceReadStore.LapView::lapNumber).isSorted();
         assertThat(readStore.positions(sessionId, riderId, 2, 0)).hasSize(3);
-        assertThat(readStore.positions(sessionId, riderId, 10, 0))
+        assertThat(readStore.positions(sessionId, riderId, 10, 0)).hasSize(11)
                 .extracting(HistoricalRaceReadStore.PositionView::lapNumber).isSorted();
         assertThat(readStore.compare(sessionId,
                 results.stream().limit(2).map(HistoricalRaceReadStore.SessionResultView::riderId).toList()))

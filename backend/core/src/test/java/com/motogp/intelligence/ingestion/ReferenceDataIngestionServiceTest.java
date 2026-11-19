@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -64,13 +65,13 @@ class ReferenceDataIngestionServiceTest {
 
         ReferenceIngestionResult result = service.ingest(PROVIDER);
 
-        assertThat(result.recordsSeen()).isEqualTo(8);
-        assertThat(result.recordsWritten()).isEqualTo(8);
-        assertThat(result.recordsByType()).containsEntry(ReferenceEntityType.SEASON, 1)
-                .containsEntry(ReferenceEntityType.EVENT, 1);
+        assertThat(result.recordsSeen()).isEqualTo(36);
+        assertThat(result.recordsWritten()).isEqualTo(36);
+        assertThat(result.recordsByType()).containsEntry(ReferenceEntityType.SEASON, 2)
+                .containsEntry(ReferenceEntityType.EVENT, 4);
         verify(ingestionRuns).ensureReferenceJob(PROVIDER);
         verify(ingestionRuns).startAttempt(any(), any());
-        verify(ingestionRuns).finishAttempt(any(), eq("SUCCEEDED"), eq(8), eq(8), any());
+        verify(ingestionRuns).finishAttempt(any(), eq("SUCCEEDED"), eq(36), eq(36), any());
         InOrder order = inOrder(identityMappings);
         order.verify(identityMappings).map(eq(PROVIDER), eq(ReferenceEntityType.SEASON),
                 eq("fixture-season-2025"), any());
@@ -90,6 +91,21 @@ class ReferenceDataIngestionServiceTest {
 
     @Test
     void rerunningExistingFixtureIsIdempotent() {
+        Set<String> legacyIds = Set.of("fixture-season-2025", "fixture-manufacturer-001", "fixture-team-001",
+                "fixture-rider-001", "fixture-rider-002", "fixture-circuit-mugello", "fixture-event-mugello-2025",
+                "fixture-session-race-2025");
+        List<ReferenceData> legacyRecords = new FixtureHistoricalDataProvider().findReferenceData(
+                        new ReferenceQuery(ReferenceEntityType.SEASON, null)).stream()
+                .filter(record -> legacyIds.contains(record.externalId())).toList();
+        for (ReferenceEntityType type : List.of(ReferenceEntityType.MANUFACTURER, ReferenceEntityType.TEAM,
+                ReferenceEntityType.RIDER, ReferenceEntityType.CIRCUIT, ReferenceEntityType.EVENT,
+                ReferenceEntityType.SESSION)) {
+            legacyRecords = new java.util.ArrayList<>(legacyRecords);
+            legacyRecords.addAll(new FixtureHistoricalDataProvider().findReferenceData(new ReferenceQuery(type, null)).stream()
+                    .filter(record -> legacyIds.contains(record.externalId())).toList());
+        }
+        service = new ReferenceDataIngestionService(new ProviderAdapterRegistry(List.of(providerOf(legacyRecords))),
+                identityMappings, store, ingestionRuns);
         stubExistingRows();
         given(identityMappings.map(eq(PROVIDER), any(), anyString(), any())).willAnswer(invocation ->
                 new IdentityMappingResult(UUID.randomUUID(), UUID.randomUUID(), PROVIDER,
@@ -166,9 +182,10 @@ class ReferenceDataIngestionServiceTest {
         given(store.insertSeason(any())).willReturn(SEASON_ID);
         given(store.insertManufacturer(any())).willReturn(MANUFACTURER_ID);
         given(store.insertTeam(any())).willReturn(TEAM_ID);
-        given(store.insertRider(any(RiderReference.class))).willReturn(RIDER_ONE_ID, RIDER_TWO_ID);
-        given(store.insertCircuit(any())).willReturn(CIRCUIT_ID);
-        given(store.insertEvent(any(), any(), any())).willReturn(EVENT_ID);
+        given(store.insertRider(any(RiderReference.class))).willAnswer(invocation -> UUID.randomUUID());
+        given(store.insertCircuit(any())).willAnswer(invocation -> UUID.randomUUID());
+        given(store.insertEvent(any(), any(), any())).willAnswer(invocation -> UUID.randomUUID());
+        given(store.insertSession(any(), any())).willAnswer(invocation -> UUID.randomUUID());
     }
 
     private void stubExistingRows() {

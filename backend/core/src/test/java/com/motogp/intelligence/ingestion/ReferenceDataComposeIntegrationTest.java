@@ -50,24 +50,37 @@ class ReferenceDataComposeIntegrationTest {
         ReferenceIngestionResult first = ingestion.ingest(FixtureHistoricalDataProvider.CODE);
         ReferenceIngestionResult second = ingestion.ingest(FixtureHistoricalDataProvider.CODE);
 
-        assertThat(first.recordsSeen()).isEqualTo(11);
+        assertThat(first.recordsSeen()).isEqualTo(64);
         assertThat(second.recordsWritten()).isZero();
         RaceDataIngestionResult raceFirst = raceIngestion.ingest(FixtureHistoricalDataProvider.CODE);
         RaceDataIngestionResult raceSecond = raceIngestion.ingest(FixtureHistoricalDataProvider.CODE);
-        assertThat(raceFirst.recordsSeen()).isEqualTo(16);
+        assertThat(raceFirst.recordsSeen()).isEqualTo(960);
         assertThat(raceSecond.recordsWritten()).isZero();
-        assertThat(count("seasons")).isGreaterThanOrEqualTo(1);
-        assertThat(count("manufacturers")).isGreaterThanOrEqualTo(1);
-        assertThat(count("teams")).isGreaterThanOrEqualTo(1);
-        assertThat(count("riders")).isGreaterThanOrEqualTo(2);
-        assertThat(count("circuits")).isGreaterThanOrEqualTo(1);
-        assertThat(count("events")).isGreaterThanOrEqualTo(1);
-        assertThat(count("team_manufacturer_seasons")).isGreaterThanOrEqualTo(1);
-        assertThat(count("rider_season_entries")).isGreaterThanOrEqualTo(2);
-        assertThat(count("sessions")).isGreaterThanOrEqualTo(1);
-        assertThat(count("session_results")).isGreaterThanOrEqualTo(2);
-        assertThat(count("rider_laps")).isGreaterThanOrEqualTo(6);
-        assertThat(count("race_positions")).isGreaterThanOrEqualTo(8);
+        assertThat(count("seasons")).isEqualTo(2);
+        assertThat(count("manufacturers")).isEqualTo(2);
+        assertThat(count("teams")).isEqualTo(4);
+        assertThat(count("riders")).isEqualTo(10);
+        assertThat(count("circuits")).isEqualTo(2);
+        assertThat(count("events")).isEqualTo(4);
+        assertThat(count("team_manufacturer_seasons")).isEqualTo(8);
+        assertThat(count("rider_season_entries")).isEqualTo(20);
+        assertThat(count("sessions")).isEqualTo(12);
+        assertThat(count("session_results")).isEqualTo(120);
+        assertThat(count("rider_laps")).isEqualTo(400);
+        assertThat(count("race_positions")).isEqualTo(440);
+        assertThat(jdbc.getJdbcTemplate().queryForObject("""
+                SELECT count(*) FROM session_results sr LEFT JOIN sessions s ON s.id = sr.session_id
+                LEFT JOIN riders r ON r.id = sr.rider_id
+                WHERE s.id IS NULL OR r.id IS NULL
+                """, Long.class)).isZero();
+        assertThat(jdbc.getJdbcTemplate().queryForObject("""
+                SELECT count(*) FROM rider_laps l LEFT JOIN session_results sr ON sr.id = l.session_result_id
+                WHERE sr.id IS NULL
+                """, Long.class)).isZero();
+        assertThat(jdbc.getJdbcTemplate().queryForObject("""
+                SELECT count(*) FROM race_positions p LEFT JOIN session_results sr ON sr.id = p.session_result_id
+                WHERE sr.id IS NULL
+                """, Long.class)).isZero();
     }
 
     @Test
@@ -86,7 +99,9 @@ class ReferenceDataComposeIntegrationTest {
                 WHERE session_result_id = (
                     SELECT sr.id FROM session_results sr
                     JOIN riders r ON r.id = sr.rider_id
-                    WHERE r.display_name = 'Fixture Rider One'
+                    JOIN sessions s ON s.id = sr.session_id
+                    JOIN events e ON e.id = s.event_id
+                    WHERE r.display_name = 'Fixture Rider One' AND s.session_type = 'RACE' AND e.name = 'Italian Grand Prix'
                 ) AND lap_number = 1
                 """, java.util.Map.of());
         jdbc.update("""
@@ -95,7 +110,9 @@ class ReferenceDataComposeIntegrationTest {
                 WHERE session_result_id = (
                     SELECT sr.id FROM session_results sr
                     JOIN riders r ON r.id = sr.rider_id
-                    WHERE r.display_name = 'Fixture Rider One'
+                    JOIN sessions s ON s.id = sr.session_id
+                    JOIN events e ON e.id = s.event_id
+                    WHERE r.display_name = 'Fixture Rider One' AND s.session_type = 'RACE' AND e.name = 'Italian Grand Prix'
                 ) AND lap_number = 2
                 """, java.util.Map.of());
 
@@ -108,7 +125,9 @@ class ReferenceDataComposeIntegrationTest {
                         WHERE session_result_id = (
                             SELECT sr.id FROM session_results sr
                             JOIN riders r ON r.id = sr.rider_id
-                            WHERE r.display_name = 'Fixture Rider One'
+                            JOIN sessions s ON s.id = sr.session_id
+                            JOIN events e ON e.id = s.event_id
+                            WHERE r.display_name = 'Fixture Rider One' AND s.session_type = 'RACE' AND e.name = 'Italian Grand Prix'
                         ) AND lap_number = 2
                         """, java.util.Map.of(), Integer.class)).isEqualTo(99999);
         assertThat(jdbc.queryForObject("""

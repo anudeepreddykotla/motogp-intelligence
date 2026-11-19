@@ -4,9 +4,9 @@ Last reviewed: 2026-11-19
 
 ## Current state
 
-Status: Phase 0, Phase 1.1, Phase 1.2, Phase 1.3 hardening, Phase 1.4 historical API completeness, and Phase 1.5 historical race frontend implemented.
+Status: Phase 0, Phase 1.1, Phase 1.2, Phase 1.3 hardening, Phase 1.4 historical API completeness, Phase 1.5 historical race frontend, and Phase 1.6 synthetic historical demo dataset implemented.
 
-The approved Java-first modular monolith, Python AI service, React frontend, Flyway migrations, Docker Compose configuration, and CI workflow are present. Phase 1.3 adds deterministic fixture-based historical race foundations: season affiliations, rider entries, sessions, classifications, laps, race positions, provenance, and read-only Java APIs. Phase 1.5 adds a responsive frontend journey over those APIs. No sectors, tyres, weather, standings, telemetry, news ingestion, ML models, RAG, agents, simulation, live timing, or external provider integration has been implemented.
+The approved Java-first modular monolith, Python AI service, React frontend, Flyway migrations, Docker Compose configuration, and CI workflow are present. Phase 1.3 adds deterministic fixture-based historical race foundations: season affiliations, rider entries, sessions, classifications, laps, race positions, provenance, and read-only Java APIs. Phase 1.5 adds a responsive frontend journey over those APIs. Phase 1.6 expands the same fixture-provider ingestion flow into a multi-season synthetic demo archive. No sectors, tyres, weather, standings, telemetry, news ingestion, ML models, RAG, agents, simulation, live timing, or external provider integration has been implemented.
 
 The requested `docs/PHASE_0_EXECUTION_PLAN.md` filename does not exist in the approved documentation set. The equivalent plan is `docs/DEVELOPMENT_PLAN.md`, which remains the source used for Phase 0 sequencing.
 
@@ -38,6 +38,7 @@ The requested `docs/PHASE_0_EXECUTION_PLAN.md` filename does not exist in the ap
 - Atomic PostgreSQL source-record upsert with concurrent same-version convergence and conflicting-version rejection.
 - PostgreSQL integration coverage proving failed race persistence rolls back while the FAILED attempt remains committed.
 - Read-only historical APIs for seasons, events, sessions, results, laps, positions, and session-scoped rider comparison, with limit/offset metadata for all historical list endpoints.
+- Expanded deterministic synthetic fixture archive: two seasons, two manufacturers, four teams, ten riders, two circuits, four events, twelve sessions, classifications for every session, ten-lap race records, and position progression.
 
 ### Python
 
@@ -105,6 +106,10 @@ The requested `docs/PHASE_0_EXECUTION_PLAN.md` filename does not exist in the ap
 | Phase 1.5 frontend TypeScript check | Passed: `npm test` |
 | Phase 1.5 frontend production build | Passed: `npm run build` with Vite 6.4.6 |
 | Phase 1.5 frontend Docker/runtime verification | Passed: frontend image built with the existing Dockerfile, container returned HTTP 200, and `/api/v1/seasons?limit=100&offset=0` proxied through Nginx with HTTP 200 and persisted data |
+| Phase 1.6 synthetic fixture shape tests | Passed: provider tests verify 2 seasons, 2 manufacturers, 4 teams, 10 riders, 2 circuits, 4 events, 12 sessions, 28 relationships, 120 classifications, 400 laps, and 440 positions |
+| Phase 1.6 Java verification | Passed: `mvn -B clean verify`, 47 tests, 0 failures/errors; 8 Compose-gated tests skipped by default |
+| Phase 1.6 PostgreSQL ingestion integration | Passed explicitly against PostgreSQL 16.16: 7 tests, 0 failures/errors; exact entity counts, repeated-ingestion idempotency, conflict handling, and foreign-key relationship checks passed |
+| Phase 1.6 PostgreSQL historical read integration | Passed explicitly against a fresh PostgreSQL 16.16 database: 1 test, 0 failures/errors; expanded season/event/session hierarchy, classification, lap/position ordering, pagination boundaries, and comparison retrieval passed |
 
 The frontend dependency installation reported four npm audit findings. They are not yet addressed because dependency remediation is outside the Phase 0 architecture scope and must be reviewed before changing versions.
 
