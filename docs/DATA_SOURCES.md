@@ -1,6 +1,6 @@
 # Data-Source Feasibility
 
-Status: Assessment only; no provider integration has been created.
+Status: RSS/Atom adapter foundation implemented; no production feed URL is enabled by default.
 
 | Source | Assessment | Phase 0 position |
 |---|---|---|
@@ -8,7 +8,7 @@ Status: Assessment only; no provider integration has been created.
 | MotoGP live timing / TimingPass | Authorized product; not a free production API assumption | Keep live adapter optional |
 | Sportradar MotoGP | Commercially credible for schedules and post-event results | Evaluate license; not a real-time dependency |
 | Official or licensed news feeds | Preferred | Use metadata, links, permitted excerpts |
-| RSS/Atom feeds | Potentially useful but each publisher’s terms differ | Configurable source registry |
+| RSS/Atom feeds | Potentially useful but each publisher’s terms differ | Configurable Java source registry with deterministic local fixtures; production sources require explicit configuration and permission |
 | Unofficial endpoints/scrapers | Technically tempting, operationally and legally fragile | Never make them the only source |
 | User-provided CSV and recorded sessions | Strong local-development fallback | Required fixture/replay path |
 | Detailed motorcycle telemetry | Generally unavailable without authorization | Do not model as guaranteed data |
@@ -20,6 +20,8 @@ MotoGP presents TimingPass as its official advanced live-data product: [TimingPa
 ## Adapter requirements
 
 Every adapter must support enable/disable configuration, timeouts, retries, rate limits, normalization, provenance, failure recording, test fixtures, and explicit coverage/ freshness metadata.
+
+Phase 2.1 implements deterministic RSS/Atom parsing, configurable timeouts, source health, provenance, deduplication, and ingestion-attempt tracking. Retry backoff, publisher-specific rate limits, and production feed enablement remain source-specific follow-up work.
 
 ## Recommended acquisition sequence
 

@@ -32,3 +32,9 @@ motogp:
   internal-ai:
     base-url: ${AI_SERVICE_URL:http://localhost:8000}
     token: ${INTERNAL_SERVICE_TOKEN:phase0-local-token}
+  news:
+    run: ${NEWS_RUN:false}
+    scheduler:
+      enabled: ${NEWS_SCHEDULER_ENABLED:false}
+      fixed-delay-ms: ${NEWS_SCHEDULER_FIXED_DELAY_MS:3600000}
+    sources: []

@@ -28,6 +28,11 @@ public class IngestionRunStore {
         return ensureJob(providerCode, "HISTORICAL");
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public UUID ensureNewsJob(String providerCode) {
+        return ensureJob(providerCode, "NEWS");
+    }
+
     private UUID ensureJob(String providerCode, String jobType) {
         return jdbc.queryForObject("""
                         INSERT INTO ingestion_jobs (provider_id, job_type)

@@ -1,6 +1,6 @@
 # API Contracts
 
-Status: Approved baseline; Phase 1.4 historical race read APIs implemented with pagination metadata.
+Status: Approved baseline; Phase 2.1 news ingestion foundation implemented without a public news ingestion endpoint.
 
 ## Public Java API
 
@@ -51,6 +51,10 @@ These endpoints return persisted records only and use the existing `{requestId,d
 The comparison endpoint is intentionally session-scoped in this phase. It returns only stored classification fields and does not invent lap, sector, or statistical values. A rider with no classification in the selected session is represented by an absent comparison row; a nonexistent rider is a `404`.
 
 Lap `observedAt` may be `null` when a provider supplies a lap time without an observation timestamp. The lap endpoint still returns HTTP 200 and JSON `null`; the service does not infer a timestamp from session start, lap number, or any other field.
+
+## News ingestion operations
+
+Phase 2.1 does not expose a public ingestion API. News ingestion is an operator-only Java operation using the `news-ingestion` profile and `motogp.news.run=true`. Configured sources are fetched through Java RSS/Atom adapters; only normalized metadata and permitted excerpts are stored. News listing and enrichment APIs remain future work.
 
 ## Internal Python API
 

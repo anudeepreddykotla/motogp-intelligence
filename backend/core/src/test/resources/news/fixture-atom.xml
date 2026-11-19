@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Synthetic Atom Feed</title>
+  <entry>
+    <title>Atom fixture article</title>
+    <link rel="alternate" href="https://news.example.test/atom/one"/>
+    <summary>Atom excerpt.</summary>
+    <published>2026-11-20T10:00:00Z</published>
+  </entry>
+</feed>

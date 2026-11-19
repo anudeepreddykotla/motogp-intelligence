@@ -1,6 +1,6 @@
 # Implementation-Ready Database Design
 
-Status: Approved baseline; foundational migration V1 and historical race foundation migration V3 implemented.
+Status: Approved baseline; foundational migrations V1, historical race V3, and news ingestion foundation V4 implemented.
 
 PostgreSQL is authoritative for normalized structured data. Flyway will own schema changes. The design favors explicit foreign keys and join tables over polymorphic references. JSONB is reserved for provider payloads, variable enrichment, model inputs/outputs, and configuration—not core relationships.
 
@@ -136,9 +136,9 @@ erDiagram
 
 | Table | Important columns and constraints |
 |---|---|
-| `news_sources` | `id uuid PK`, `provider_id FK NULL`, `name text`, `source_type text CHECK`, `base_url text`, `enabled boolean`, unique `name` |
+| `news_sources` | `id uuid PK`, `provider_id FK`, `code text UNIQUE`, `name text`, `source_type text CHECK` (`RSS`, `ATOM`, `RSS_ATOM`), `feed_url text`, `enabled boolean`, timeout and last-attempt/success/failure health fields |
 | `news_stories` | `id uuid PK`, `title text`, `importance_score numeric(5,2) NULL CHECK 0..100`, `created_at`, `updated_at` |
-| `news_articles` | `id uuid PK`, `story_id FK`, `source_id FK`, `canonical_url text UNIQUE`, `title text`, `published_at timestamptz NULL`, `fetched_at timestamptz`, `content_hash char(64) NULL`, `summary text NULL`, `verification_status text CHECK`, `primary_source_record_id FK NULL` |
+| `news_articles` | `id uuid PK`, `story_id FK NULL`, `source_id FK`, `canonical_url text UNIQUE`, `deduplication_key text UNIQUE`, `original_url text NULL`, `title text`, `published_at timestamptz NULL`, `permitted_excerpt text NULL`, `image_url text NULL`, `fetched_at timestamptz`, `content_hash char(64) NULL`, `primary_source_record_id FK NULL`; canonical URLs are preferred and deterministic fingerprints are used only when the feed has no URL |
 | `news_enrichments` | `id uuid PK`, `article_id FK`, `model_version text NULL`, `category text CHECK`, `importance_score numeric(5,2) NULL CHECK 0..100`, `summary text NULL`, `enriched_at timestamptz`, unique `(article_id, model_version)` |
 | `news_article_riders` | `article_id FK`, `rider_id FK`, `association_type text`, PK `(article_id, rider_id, association_type)` |
 | `news_article_teams` | `article_id FK`, `team_id FK`, `association_type text`, PK `(article_id, team_id, association_type)` |
@@ -226,6 +226,8 @@ Minimum tables:
 
 - `news_sources`, `news_stories`, `news_articles`, `news_enrichments`
 - Explicit news article association tables
+
+Phase 2.1 currently implements the `news_sources`, `news_stories`, and `news_articles` foundation in Flyway V4. Enrichment and explicit domain association tables remain incremental additions.
 
 ### Migration 4: documents and RAG
 

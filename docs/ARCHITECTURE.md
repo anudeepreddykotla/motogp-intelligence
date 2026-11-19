@@ -1,6 +1,6 @@
 # MotoGP Intelligence Architecture
 
-Status: Approved baseline; Phase 0 foundation implemented.
+Status: Approved baseline; Phase 2.1 news ingestion foundation implemented.
 
 ## Repository baseline
 
@@ -13,6 +13,7 @@ The repository contains the initial README, `.gitignore`, and one Git initializa
 3. Keep ingestion orchestration, scheduling, normalization, persistence, news storage, security, and business rules in Java.
 4. Use PostgreSQL as the authoritative structured store, pgvector for document embeddings, and Redis only for transient live state and cacheable results.
 5. Keep provider integrations behind Java adapters with provenance, retries, rate limits, timeouts, and fixtures.
+6. Keep news RSS/Atom adapters in the Java news module; source URLs remain configuration-owned and opt-in.
 6. Use recorded sessions and licensed/permitted historical data as the demonstrable fallback; live timing remains optional.
 7. Do not add Kafka/Redpanda, Kubernetes, or additional deployable services before an evidenced need.
 

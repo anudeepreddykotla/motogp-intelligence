@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Synthetic MotoGP News Feed</title>
+    <item>
+      <title>Fixture rider completes a synthetic test</title>
+      <link>https://news.example.test/articles/fixture-rider</link>
+      <description>Permitted fixture excerpt for deterministic testing.</description>
+      <pubDate>Fri, 20 Nov 2026 08:30:00 GMT</pubDate>
+      <enclosure url="https://news.example.test/images/fixture.jpg" type="image/jpeg"/>
+    </item>
+    <item>
+      <title>Fixture report without a link</title>
+      <description>Second deterministic item uses a content fingerprint.</description>
+      <pubDate>2026-11-20T09:00:00Z</pubDate>
+    </item>
+    <item>
+      <title>Fixture rider completes a synthetic test</title>
+      <link>https://news.example.test/articles/fixture-rider</link>
+      <description>Duplicate URL must be collapsed by ingestion.</description>
+    </item>
+  </channel>
+</rss>
