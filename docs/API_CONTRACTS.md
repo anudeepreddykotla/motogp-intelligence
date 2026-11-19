@@ -1,6 +1,6 @@
 # API Contracts
 
-Status: Approved baseline; Phase 0 system and internal health contracts implemented.
+Status: Approved baseline; Phase 1.3 historical read APIs implemented.
 
 ## Public Java API
 
@@ -20,6 +20,19 @@ Every response uses a consistent envelope:
 ```
 
 Errors contain a stable code, human-readable message, field errors where applicable, and the request ID. Pagination must be consistent across list endpoints.
+
+## Historical race read APIs
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/api/v1/events/{eventId}/sessions` | Sessions belonging to an event |
+| GET | `/api/v1/sessions/{sessionId}/results` | Rider classifications for a session |
+| GET | `/api/v1/sessions/{sessionId}/laps?riderId={riderId}&limit=1000&offset=0` | Rider lap records |
+| GET | `/api/v1/sessions/{sessionId}/positions?riderId={riderId}&limit=1000&offset=0` | Rider race-position snapshots |
+
+These endpoints return persisted records only. Invalid pagination returns `400`; missing event, session, or rider resources return `404`. They are temporarily public in the local Phase 1 environment because user authentication is not implemented. Sectors, tyres, weather, standings, and telemetry are deliberately absent.
+
+Lap `observedAt` may be `null` when a provider supplies a lap time without an observation timestamp. The lap endpoint still returns HTTP 200 and JSON `null`; the service does not infer a timestamp from session start, lap number, or any other field.
 
 ## Internal Python API
 

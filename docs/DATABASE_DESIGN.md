@@ -1,6 +1,6 @@
 # Implementation-Ready Database Design
 
-Status: Approved baseline; foundational migration V1 implemented.
+Status: Approved baseline; foundational migration V1 and historical race foundation migration V3 implemented.
 
 PostgreSQL is authoritative for normalized structured data. Flyway will own schema changes. The design favors explicit foreign keys and join tables over polymorphic references. JSONB is reserved for provider payloads, variable enrichment, model inputs/outputs, and configuration—not core relationships.
 
@@ -29,6 +29,8 @@ erDiagram
     seasons ||--o{ team_manufacturer_seasons : has
     teams ||--o{ team_manufacturer_seasons : uses
     manufacturers ||--o{ team_manufacturer_seasons : supplies
+    source_records ||--o{ team_manufacturer_seasons : supports
+    source_records ||--o{ rider_season_entries : supports
 
     sessions ||--o{ session_results : produces
     riders ||--o{ session_results : records
@@ -89,7 +91,7 @@ erDiagram
 - Missing data is `NULL`, not zero, empty string, or fabricated value. A separate availability/status field is used when “not applicable” differs from “not observed”.
 - Provider payloads are retained according to source terms. Store structured JSON in `jsonb`; store non-JSON documents externally with a URI and content hash.
 - Every source-backed normalized row has a nullable `primary_source_record_id`. Derived rows identify their input run or source through their owning table.
-- All normalized rows have `created_at` and `updated_at`; source observations also have `first_seen_at` and `last_seen_at`.
+- All normalized rows have `created_at` and `updated_at`; source observations also have `first_seen_at` and `last_seen_at`. A logical source record's non-null `source_version` is immutable; a different version is a conflict until source-version history is implemented. Source-record creation and compatible re-observation use an atomic PostgreSQL upsert, so concurrent jobs resolve to one logical row.
 - Raw payload retention is configurable by provider and legal policy; normalized records and hashes are retained longer than raw content where permitted.
 
 ## Table specification
@@ -117,13 +119,13 @@ erDiagram
 | `riders` | `id uuid PK`, `primary_source_record_id FK NULL`, `display_name text`, `given_name text NULL`, `family_name text NULL`, `nationality_code char(2) NULL`, unique normalized display identity as decided by application |
 | `manufacturers` | `id uuid PK`, `primary_source_record_id FK NULL`, `name text UNIQUE` |
 | `teams` | `id uuid PK`, `primary_source_record_id FK NULL`, `name text`, `country_code char(2) NULL`, unique `(name, country_code)` |
-| `team_manufacturer_seasons` | `id uuid PK`, `season_id FK`, `team_id FK`, `manufacturer_id FK`, `valid_from_event_id FK NULL`, `valid_to_event_id FK NULL`, check end is not before start, unique `(season_id, team_id, manufacturer_id, valid_from_event_id)` |
-| `rider_season_entries` | `id uuid PK`, `season_id FK`, `rider_id FK`, `team_id FK`, `manufacturer_id FK NULL`, `competition_class text`, `racing_number smallint NULL`, `valid_from_event_id FK NULL`, `valid_to_event_id FK NULL`, checks for positive number and valid range, unique `(season_id, rider_id, valid_from_event_id)` |
+| `team_manufacturer_seasons` | `id uuid PK`, `season_id FK`, `team_id FK`, `manufacturer_id FK`, `valid_from_event_id FK NULL`, `valid_to_event_id FK NULL`, `primary_source_record_id FK NULL`, check end is not before start, unique `(season_id, team_id, manufacturer_id, valid_from_event_id)` |
+| `rider_season_entries` | `id uuid PK`, `season_id FK`, `rider_id FK`, `team_id FK`, `manufacturer_id FK NULL`, `competition_class text`, `racing_number smallint NULL`, `valid_from_event_id FK NULL`, `valid_to_event_id FK NULL`, `primary_source_record_id FK NULL`, checks for positive number and valid range, unique `(season_id, rider_id, valid_from_event_id)` |
 | `sessions` | `id uuid PK`, `event_id FK`, `primary_source_record_id FK NULL`, `session_type text CHECK`, `scheduled_start_at timestamptz NULL`, `started_at timestamptz NULL`, `ended_at timestamptz NULL`, `data_mode text CHECK` (`HISTORICAL`, `RECORDED`, `LIVE`), unique `(event_id, session_type)` |
 | `session_results` | `id uuid PK`, `session_id FK`, `rider_id FK`, `team_id FK NULL`, `manufacturer_id FK NULL`, `grid_position smallint NULL`, `classification_position smallint NULL`, `classification_status text`, `laps_completed smallint NULL`, `total_time_ms integer NULL`, `points numeric(6,2) NULL`, `primary_source_record_id FK NULL`, unique `(session_id, rider_id)` |
-| `rider_laps` | `id uuid PK`, `session_result_id FK`, `lap_number smallint CHECK > 0`, `lap_time_ms integer NULL CHECK > 0`, `is_valid boolean`, `observed_at timestamptz NULL`, unique `(session_result_id, lap_number)` |
+| `rider_laps` | `id uuid PK`, `session_result_id FK`, `lap_number smallint CHECK > 0`, `lap_time_ms integer NULL CHECK > 0`, `is_valid boolean`, `observed_at timestamptz NULL` when the provider does not supply an observation timestamp, `primary_source_record_id FK NULL`, unique `(session_result_id, lap_number)` |
 | `rider_sectors` | `id uuid PK`, `rider_lap_id FK`, `sector_number smallint CHECK 1..4`, `sector_time_ms integer NULL CHECK > 0`, unique `(rider_lap_id, sector_number)` |
-| `race_positions` | `id uuid PK`, `session_result_id FK`, `lap_number smallint CHECK >= 0`, `position smallint NULL CHECK > 0`, `observed_at timestamptz`, unique `(session_result_id, lap_number)` |
+| `race_positions` | `id uuid PK`, `session_result_id FK`, `lap_number smallint CHECK >= 0`, `position smallint NULL CHECK > 0`, `observed_at timestamptz`, `primary_source_record_id FK NULL`, unique `(session_result_id, lap_number)` |
 | `tyre_stints` | `id uuid PK`, `session_result_id FK`, `start_lap smallint CHECK > 0`, `end_lap smallint NULL`, `compound text NULL`, `tyre_specification text NULL`, check end is not before start, unique `(session_result_id, start_lap)` |
 | `weather_observations` | `id uuid PK`, `session_id FK`, `observed_at timestamptz`, `air_temperature_c numeric(5,2) NULL`, `track_temperature_c numeric(5,2) NULL`, `humidity_percent numeric(5,2) NULL CHECK 0..100`, `rain_state text NULL`, `wind_speed_mps numeric(6,2) NULL`, unique `(session_id, observed_at)` |
 | `championship_standings` | `id uuid PK`, `season_id FK`, `rider_id FK NULL`, `team_id FK NULL`, `standing_type text CHECK` (`RIDER`, `TEAM`, `MANUFACTURER`), `round_number smallint CHECK >= 0`, `position smallint CHECK > 0`, `points numeric(8,2)`, unique `(season_id, standing_type, rider_id, team_id, round_number)` with the applicable subject non-null |

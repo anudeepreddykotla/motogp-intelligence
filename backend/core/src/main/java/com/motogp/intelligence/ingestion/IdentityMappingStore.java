@@ -46,21 +46,45 @@ public class IdentityMappingStore {
 
     public UUID upsertSourceRecord(UUID providerId, ReferenceEntityType entityType,
                                    String externalId, String sourceVersion, Instant observedAt) {
-        return jdbc.queryForObject("""
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("providerId", providerId)
+                .addValue("entityType", entityType.name())
+                .addValue("externalId", externalId)
+                .addValue("sourceVersion", sourceVersion)
+                .addValue("observedAt", Timestamp.from(observedAt));
+
+        ExistingSourceRecord resolved = jdbc.query("""
                         INSERT INTO source_records (
                             provider_id, entity_type, provider_external_id, source_version, first_seen_at, last_seen_at)
                         VALUES (:providerId, :entityType, :externalId, :sourceVersion, :observedAt, :observedAt)
                         ON CONFLICT (provider_id, entity_type, provider_external_id)
-                        DO UPDATE SET last_seen_at = GREATEST(source_records.last_seen_at, EXCLUDED.last_seen_at),
-                                      source_version = COALESCE(EXCLUDED.source_version, source_records.source_version)
-                        RETURNING id
-                        """,
-                new MapSqlParameterSource()
-                        .addValue("providerId", providerId)
-                        .addValue("entityType", entityType.name())
-                        .addValue("externalId", externalId)
-                        .addValue("sourceVersion", sourceVersion)
-                        .addValue("observedAt", Timestamp.from(observedAt)), UUID.class);
+                        DO UPDATE SET last_seen_at = GREATEST(source_records.last_seen_at, EXCLUDED.last_seen_at)
+                        WHERE source_records.source_version IS NULL
+                           OR EXCLUDED.source_version IS NULL
+                           OR source_records.source_version = EXCLUDED.source_version
+                        RETURNING id, source_version
+                        """, parameters,
+                rows -> rows.next() ? new ExistingSourceRecord(rows.getObject("id", UUID.class),
+                        rows.getString("source_version")) : null);
+
+        if (resolved != null) {
+            return resolved.id();
+        }
+
+        ExistingSourceRecord existing = jdbc.query("""
+                        SELECT id, source_version
+                        FROM source_records
+                        WHERE provider_id = :providerId AND entity_type = :entityType
+                          AND provider_external_id = :externalId
+                        """, parameters,
+                rows -> rows.next() ? new ExistingSourceRecord(rows.getObject("id", UUID.class),
+                        rows.getString("source_version")) : null);
+        if (existing == null) {
+            throw new IllegalStateException("Source record conflict row disappeared for "
+                    + providerId + "/" + entityType + "/" + externalId);
+        }
+        throw new SourceRecordConflictException(providerId, entityType, externalId,
+                existing.sourceVersion(), sourceVersion);
     }
 
     public UUID insertMapping(UUID providerId, ReferenceEntityType entityType, String externalId,
@@ -80,5 +104,8 @@ public class IdentityMappingStore {
     }
 
     public record ExistingMapping(UUID mappingId, UUID internalId) {
+    }
+
+    private record ExistingSourceRecord(UUID id, String sourceVersion) {
     }
 }

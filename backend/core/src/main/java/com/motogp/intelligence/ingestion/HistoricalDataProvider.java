@@ -14,6 +14,15 @@ public interface HistoricalDataProvider {
         throw new UnsupportedOperationException("Provider does not expose normalized reference data: " + code());
     }
 
+    default List<ReferenceRelationshipData> findReferenceRelationships() {
+        return List.of();
+    }
+
+    /** Returns normalized race records; provider-specific parsing remains inside the adapter. */
+    default List<RaceData> findRaceData(RaceDataQuery query) {
+        throw new UnsupportedOperationException("Provider does not expose normalized race data: " + code());
+    }
+
     default Optional<ExternalReference> findReference(ReferenceQuery query) {
         return findReferences(query).stream().findFirst();
     }

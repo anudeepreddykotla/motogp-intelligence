@@ -4,9 +4,9 @@ Last reviewed: 2026-11-18
 
 ## Current state
 
-Status: Phase 0, Phase 1.1, and Phase 1.2 historical reference-data ingestion milestones implemented; race-data ingestion has not started.
+Status: Phase 0, Phase 1.1, Phase 1.2, and Phase 1.3 historical-data milestones implemented, including Phase 1.3 hardening.
 
-The approved Java-first modular monolith, Python AI service, React frontend shell, foundational Flyway migrations, Docker Compose configuration, and CI workflow are present. Phase 1.2 adds only deterministic fixture-based reference-data ingestion for seasons, manufacturers, teams, riders, circuits, and events. No race-result or lap-data ingestion, news ingestion, ML models, RAG, agents, simulation, or live timing has been implemented.
+The approved Java-first modular monolith, Python AI service, React frontend shell, Flyway migrations, Docker Compose configuration, and CI workflow are present. Phase 1.3 adds deterministic fixture-based historical race foundations: season affiliations, rider entries, sessions, classifications, laps, race positions, provenance, and read-only Java APIs. No sectors, tyres, weather, standings, telemetry, news ingestion, ML models, RAG, agents, simulation, live timing, or external provider integration has been implemented.
 
 The requested `docs/PHASE_0_EXECUTION_PLAN.md` filename does not exist in the approved documentation set. The equivalent plan is `docs/DEVELOPMENT_PLAN.md`, which remains the source used for Phase 0 sequencing.
 
@@ -29,6 +29,15 @@ The requested `docs/PHASE_0_EXECUTION_PLAN.md` filename does not exist in the ap
 - Typed normalized reference records and a dependency-ordered transactional ingestion service.
 - JDBC persistence for all six reference entities with natural-key conflict detection and source provenance attachment.
 - Reference ingestion job/attempt bookkeeping using the existing operational tables.
+- Historical fixture records for affiliations, sessions, classifications, laps, and race-position snapshots.
+- Flyway V3 race tables and provenance columns for affiliation and race records.
+- Transactional race persistence with idempotent natural keys and explicit conflict rejection.
+- Independent failed-attempt recording for race ingestion.
+- Typed logical-key validation for duplicate session results, laps, and race-position snapshots.
+- Immutable source-version conflict detection shared by reference and race ingestion.
+- Atomic PostgreSQL source-record upsert with concurrent same-version convergence and conflicting-version rejection.
+- PostgreSQL integration coverage proving failed race persistence rolls back while the FAILED attempt remains committed.
+- Read-only historical APIs for sessions, results, laps, and positions.
 
 ### Python
 
@@ -62,15 +71,18 @@ The requested `docs/PHASE_0_EXECUTION_PLAN.md` filename does not exist in the ap
 
 | Check | Result |
 |---|---|
-| `mvn -B clean verify` | Passed: 16 tests, 0 failures, 0 errors, 1 explicitly gated Compose integration test skipped |
-| Fixture ingestion unit tests | Passed: 5 tests covering ordering, idempotency, duplicate IDs, missing dependencies, and conflicts |
-| Compose PostgreSQL ingestion integration test | Passed: Flyway V2, all 7 fixture records, valid event relationships, idempotent rerun, provenance, and 2 successful attempts |
+| `mvn -B clean verify` | Passed: 28 tests, 0 failures, 0 errors; 7 Compose-gated tests skipped by default |
+| Fixture ingestion unit tests | Passed: 5 race-ingestion tests, including all three typed logical duplicate-key cases; 5 reference-ingestion tests; 5 identity-mapping tests |
+| Nullable lap timestamp API test | Passed: HTTP 200 response with JSON `null` for `observedAt` |
+| Compose PostgreSQL ingestion integration tests | Passed explicitly with `runComposeIntegrationTests=true`: 7 tests, 0 failures/errors; includes rollback with FAILED attempt, source-version immutability/null behavior, concurrent same-version convergence, conflicting-version rejection, and reference/race idempotency |
 | `python -m pytest` in isolated `.venv` | Passed: 3 tests, 0 failures |
 | `npm run build` | Passed: TypeScript compilation and Vite production build |
 | `npm test` | Passed: TypeScript check |
 | Clean frontend `npm ci && npm run build && npm test` | Passed with locked versions: React Query 5.108.0, Vite 6.4.6, Rollup 4.68.6 |
 | Frontend Docker image build | Passed: `motogp-intelligence-web:phase0-fix` |
 | `docker compose config --quiet` | Passed |
+| Final backend Compose rebuild and readiness | Passed: backend rebuilt with the final Phase 1.3 code and readiness returned HTTP 200 |
+| Historical read APIs | Passed: sessions, results, laps, and positions endpoints each returned HTTP 200 for persisted fixture IDs |
 | `docker compose up -d --build` | Passed: all 5 containers started successfully |
 | Backend rebuild after Phase 1.2 changes | Passed: image built and backend container healthy |
 | Java health/readiness | Passed: HTTP 200 |
@@ -97,6 +109,7 @@ docker compose config --quiet
 docker compose up -d --build
 docker compose build backend
 docker compose up -d backend
+curl --fail http://127.0.0.1:8080/actuator/health/readiness
 cd ai && .venv/bin/python -m pytest
 cd frontend/web && npm run build && npm test
 POSTGRES_PORT=55432 docker compose up -d postgres
@@ -105,16 +118,17 @@ POSTGRES_PORT=5432 docker compose up -d postgres
 docker build --file frontend/web/Dockerfile --tag motogp-intelligence-web:phase0-fix .
 docker compose exec -T redis redis-cli ping
 docker compose exec -T postgres psql -U motogp -d motogp -Atc "select version || ':' || success from flyway_schema_history order by installed_rank; select code from providers where code='fixture-historical'; select count(*) from information_schema.tables where table_schema='public';"
+git diff --check
 ```
 
 ## Outstanding issues
 
 - Phase 1.2 has no authorized external provider integration; the fixture provider is intentionally deterministic and test-only.
-- Historical race results, sessions, laps, sectors, tyres, weather, standings, raw payload capture, and public ingestion APIs remain future work.
+- Sectors, tyres, weather, standings, raw payload capture, and public ingestion APIs remain future work; sessions/results/laps/positions are implemented only for the deterministic fixture provider.
 - Review the four npm audit findings before production use.
 - Replace the development fallback internal token in shared environments.
 - Add full authentication, domain APIs, and persistence entities in later phases.
 
 ## Next action
 
-Stop at Phase 1.2. Do not begin race-result or lap-data ingestion until this reference-data milestone is reviewed.
+Review the Phase 1.3 implementation before beginning any later historical-data milestone. Do not add sectors, tyres, weather, standings, telemetry, or external providers without a separate approved scope.

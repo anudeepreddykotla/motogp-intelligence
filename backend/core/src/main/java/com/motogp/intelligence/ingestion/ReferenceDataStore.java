@@ -111,12 +111,34 @@ public class ReferenceDataStore {
                         .addValue("timezone", data.timezone()), UUID.class);
     }
 
+    public Optional<SessionRow> findSession(UUID eventId, String sessionType) {
+        return jdbc.query("""
+                        SELECT id, event_id, session_type, scheduled_start_at, started_at, ended_at, data_mode
+                        FROM sessions WHERE event_id = :eventId AND session_type = :sessionType
+                        """, params().addValue("eventId", eventId).addValue("sessionType", sessionType),
+                rows -> rows.next() ? Optional.of(new SessionRow(rows.getObject("id", UUID.class),
+                        rows.getObject("event_id", UUID.class), rows.getString("session_type"),
+                        toInstant(rows.getTimestamp("scheduled_start_at")), toInstant(rows.getTimestamp("started_at")),
+                        toInstant(rows.getTimestamp("ended_at")), rows.getString("data_mode"))) : Optional.empty());
+    }
+
+    public UUID insertSession(SessionReference data, UUID eventId) {
+        return jdbc.queryForObject("""
+                        INSERT INTO sessions (event_id, session_type, scheduled_start_at, started_at, ended_at, data_mode)
+                        VALUES (:eventId, :sessionType, :scheduledStartAt, :startedAt, :endedAt, :dataMode) RETURNING id
+                        """, params().addValue("eventId", eventId).addValue("sessionType", data.sessionType())
+                        .addValue("scheduledStartAt", timestamp(data.scheduledStartAt()))
+                        .addValue("startedAt", timestamp(data.startedAt())).addValue("endedAt", timestamp(data.endedAt()))
+                        .addValue("dataMode", data.dataMode()), UUID.class);
+    }
+
     public void attachPrimarySourceRecord(String tableName, UUID entityId, UUID sourceRecordId) {
         if (!SetOfReferenceTables.NAMES.contains(tableName)) {
             throw new IllegalArgumentException("Unsupported reference table: " + tableName);
         }
+        String updatedAt = SetOfReferenceTables.WITHOUT_UPDATED_AT.contains(tableName) ? "" : ", updated_at = now()";
         jdbc.update("UPDATE " + tableName
-                        + " SET primary_source_record_id = COALESCE(primary_source_record_id, :sourceRecordId), updated_at = now()"
+                        + " SET primary_source_record_id = COALESCE(primary_source_record_id, :sourceRecordId)" + updatedAt
                         + " WHERE id = :entityId",
                 params().addValue("sourceRecordId", sourceRecordId).addValue("entityId", entityId));
     }
@@ -129,12 +151,73 @@ public class ReferenceDataStore {
         return value == null ? null : value.toInstant();
     }
 
+    private Timestamp timestamp(Instant value) {
+        return value == null ? null : Timestamp.from(value);
+    }
+
     private static final class SetOfReferenceTables {
         private static final java.util.Set<String> NAMES = java.util.Set.of(
-                "seasons", "manufacturers", "teams", "riders", "circuits", "events");
+                "seasons", "manufacturers", "teams", "riders", "circuits", "events", "sessions",
+                "team_manufacturer_seasons", "rider_season_entries");
+        private static final java.util.Set<String> WITHOUT_UPDATED_AT = java.util.Set.of(
+                "team_manufacturer_seasons", "rider_season_entries");
+    }
+
+    public Optional<TeamManufacturerSeasonRow> findTeamManufacturerSeason(UUID seasonId, UUID teamId, UUID manufacturerId, UUID fromEventId) {
+        return jdbc.query("SELECT id, season_id, team_id, manufacturer_id, valid_from_event_id, valid_to_event_id FROM team_manufacturer_seasons WHERE season_id=:seasonId AND team_id=:teamId "
+                        + "AND manufacturer_id=:manufacturerId AND valid_from_event_id IS NOT DISTINCT FROM :fromEventId",
+                params().addValue("seasonId", seasonId).addValue("teamId", teamId)
+                        .addValue("manufacturerId", manufacturerId).addValue("fromEventId", fromEventId),
+                rows -> rows.next() ? Optional.of(new TeamManufacturerSeasonRow(rows.getObject("id", UUID.class),
+                        rows.getObject("season_id", UUID.class), rows.getObject("team_id", UUID.class),
+                        rows.getObject("manufacturer_id", UUID.class), rows.getObject("valid_from_event_id", UUID.class),
+                        rows.getObject("valid_to_event_id", UUID.class))) : Optional.empty());
+    }
+
+    public UUID insertTeamManufacturerSeason(TeamManufacturerSeasonReference data, UUID seasonId, UUID teamId,
+                                             UUID manufacturerId, UUID fromEventId, UUID toEventId) {
+        return jdbc.queryForObject("""
+                INSERT INTO team_manufacturer_seasons (season_id, team_id, manufacturer_id, valid_from_event_id, valid_to_event_id)
+                VALUES (:seasonId,:teamId,:manufacturerId,:fromEventId,:toEventId) RETURNING id
+                """, params().addValue("seasonId", seasonId).addValue("teamId", teamId)
+                .addValue("manufacturerId", manufacturerId).addValue("fromEventId", fromEventId)
+                .addValue("toEventId", toEventId), UUID.class);
+    }
+
+    public Optional<RiderSeasonEntryRow> findRiderSeasonEntry(UUID seasonId, UUID riderId, UUID fromEventId) {
+        return jdbc.query("SELECT id, season_id, rider_id, team_id, manufacturer_id, competition_class, racing_number, valid_from_event_id, valid_to_event_id FROM rider_season_entries WHERE season_id=:seasonId AND rider_id=:riderId "
+                        + "AND valid_from_event_id IS NOT DISTINCT FROM :fromEventId",
+                params().addValue("seasonId", seasonId).addValue("riderId", riderId).addValue("fromEventId", fromEventId),
+                rows -> rows.next() ? Optional.of(new RiderSeasonEntryRow(rows.getObject("id", UUID.class),
+                        rows.getObject("season_id", UUID.class), rows.getObject("rider_id", UUID.class),
+                        rows.getObject("team_id", UUID.class), rows.getObject("manufacturer_id", UUID.class),
+                        rows.getString("competition_class"), rows.getObject("racing_number", Short.class),
+                        rows.getObject("valid_from_event_id", UUID.class), rows.getObject("valid_to_event_id", UUID.class))) : Optional.empty());
+    }
+
+    public UUID insertRiderSeasonEntry(RiderSeasonEntryReference data, UUID seasonId, UUID riderId, UUID teamId,
+                                       UUID manufacturerId, UUID fromEventId, UUID toEventId) {
+        return jdbc.queryForObject("""
+                INSERT INTO rider_season_entries (season_id, rider_id, team_id, manufacturer_id, competition_class,
+                    racing_number, valid_from_event_id, valid_to_event_id)
+                VALUES (:seasonId,:riderId,:teamId,:manufacturerId,:competitionClass,:racingNumber,:fromEventId,:toEventId)
+                RETURNING id
+                """, params().addValue("seasonId", seasonId).addValue("riderId", riderId)
+                .addValue("teamId", teamId).addValue("manufacturerId", manufacturerId)
+                .addValue("competitionClass", data.competitionClass()).addValue("racingNumber", data.racingNumber())
+                .addValue("fromEventId", fromEventId).addValue("toEventId", toEventId), UUID.class);
     }
 
     public record PersistenceResult(UUID id, boolean created) {
+    }
+
+    public record TeamManufacturerSeasonRow(UUID id, UUID seasonId, UUID teamId, UUID manufacturerId,
+                                            UUID validFromEventId, UUID validToEventId) {
+    }
+
+    public record RiderSeasonEntryRow(UUID id, UUID seasonId, UUID riderId, UUID teamId, UUID manufacturerId,
+                                      String competitionClass, Short racingNumber, UUID validFromEventId,
+                                      UUID validToEventId) {
     }
 
     public record SeasonRow(UUID id, short year, String championship) {
@@ -155,5 +238,9 @@ public class ReferenceDataStore {
 
     public record EventRow(UUID id, UUID seasonId, UUID circuitId, String name, short roundNumber,
                            Instant scheduledStartAt, String timezone) {
+    }
+
+    public record SessionRow(UUID id, UUID eventId, String sessionType, Instant scheduledStartAt,
+                             Instant startedAt, Instant endedAt, String dataMode) {
     }
 }

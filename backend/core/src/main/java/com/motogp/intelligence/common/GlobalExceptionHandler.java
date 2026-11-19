@@ -7,11 +7,32 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import com.motogp.intelligence.ingestion.InvalidRaceDataException;
+import com.motogp.intelligence.ingestion.InvalidReferenceDataException;
+import com.motogp.intelligence.ingestion.RaceDataConflictException;
+import com.motogp.intelligence.ingestion.ReferenceDataConflictException;
+import com.motogp.intelligence.ingestion.SourceRecordConflictException;
+import com.motogp.intelligence.race.HistoricalResourceNotFoundException;
 
 import java.util.List;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler(HistoricalResourceNotFoundException.class)
+    ResponseEntity<ApiResponse<Void>> notFound(HistoricalResourceNotFoundException exception, HttpServletRequest request) {
+        return error(HttpStatus.NOT_FOUND, "NOT_FOUND", exception.getMessage(), request);
+    }
+
+    @ExceptionHandler({InvalidRaceDataException.class, InvalidReferenceDataException.class})
+    ResponseEntity<ApiResponse<Void>> invalidData(RuntimeException exception, HttpServletRequest request) {
+        return error(HttpStatus.BAD_REQUEST, "HISTORICAL_DATA_INVALID", exception.getMessage(), request);
+    }
+
+    @ExceptionHandler({RaceDataConflictException.class, ReferenceDataConflictException.class,
+            SourceRecordConflictException.class})
+    ResponseEntity<ApiResponse<Void>> conflictingData(RuntimeException exception, HttpServletRequest request) {
+        return error(HttpStatus.CONFLICT, "HISTORICAL_DATA_CONFLICT", exception.getMessage(), request);
+    }
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<ApiResponse<Void>> validation(MethodArgumentNotValidException exception,
                                                    HttpServletRequest request) {
@@ -37,5 +58,11 @@ public class GlobalExceptionHandler {
 
     private String requestId(HttpServletRequest request) {
         return request.getHeader(CorrelationIdFilter.HEADER);
+    }
+
+    private ResponseEntity<ApiResponse<Void>> error(HttpStatus status, String code, String message,
+                                                     HttpServletRequest request) {
+        return ResponseEntity.status(status).body(new ApiResponse<>(requestId(request), null,
+                List.of(new ApiError(code, message))));
     }
 }

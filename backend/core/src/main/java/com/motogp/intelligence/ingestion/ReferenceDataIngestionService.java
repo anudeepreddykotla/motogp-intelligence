@@ -24,29 +24,39 @@ public class ReferenceDataIngestionService {
             ReferenceEntityType.CIRCUIT,
             ReferenceEntityType.TEAM,
             ReferenceEntityType.RIDER,
-            ReferenceEntityType.EVENT);
+            ReferenceEntityType.EVENT,
+            ReferenceEntityType.SESSION);
 
     private final ProviderAdapterRegistry providers;
     private final IdentityMappingService identityMappings;
     private final ReferenceDataStore store;
+    private final IdentityMappingStore identityStore;
     private final IngestionRunStore ingestionRuns;
     private final Clock clock;
 
     @Autowired
     public ReferenceDataIngestionService(ProviderAdapterRegistry providers,
                                          IdentityMappingService identityMappings,
-                                         ReferenceDataStore store, IngestionRunStore ingestionRuns) {
-        this(providers, identityMappings, store, ingestionRuns, Clock.systemUTC());
+                                         ReferenceDataStore store, IngestionRunStore ingestionRuns,
+                                         IdentityMappingStore identityStore) {
+        this(providers, identityMappings, store, ingestionRuns, identityStore, Clock.systemUTC());
+    }
+
+    ReferenceDataIngestionService(ProviderAdapterRegistry providers, IdentityMappingService identityMappings,
+                                  ReferenceDataStore store, IngestionRunStore ingestionRuns) {
+        this(providers, identityMappings, store, ingestionRuns, null, Clock.systemUTC());
     }
 
     ReferenceDataIngestionService(ProviderAdapterRegistry providers,
                                   IdentityMappingService identityMappings,
                                   ReferenceDataStore store, IngestionRunStore ingestionRuns,
+                                  IdentityMappingStore identityStore,
                                   Clock clock) {
         this.providers = providers;
         this.identityMappings = identityMappings;
         this.store = store;
         this.ingestionRuns = ingestionRuns;
+        this.identityStore = identityStore;
         this.clock = clock;
     }
 
@@ -139,6 +149,20 @@ public class ReferenceDataIngestionService {
                             created = true;
                         }
                     }
+                    case SessionReference session -> {
+                        UUID eventId = requireDependency(providerCode, idsByExternalId, session,
+                                session.eventExternalId(), ReferenceEntityType.EVENT);
+                        ReferenceDataStore.SessionRow existing = store.findSession(eventId, session.sessionType()).orElse(null);
+                        if (existing != null) {
+                            requireSame(sameSession(existing, session, eventId), type, session,
+                                    "natural key resolved to different session values");
+                            id = existing.id();
+                            created = false;
+                        } else {
+                            id = store.insertSession(session, eventId);
+                            created = true;
+                        }
+                    }
                     default -> throw new InvalidReferenceDataException(providerCode, type, record.externalId(),
                             "unsupported reference type");
                 }
@@ -153,11 +177,92 @@ public class ReferenceDataIngestionService {
             }
         }
 
+        List<ReferenceRelationshipData> relationships = identityStore == null
+                ? List.of() : loadAndValidateRelationships(provider);
+        for (ReferenceRelationshipData relationship : relationships) {
+            UUID relationshipId;
+            boolean created;
+            switch (relationship) {
+                case TeamManufacturerSeasonReference affiliation -> {
+                    UUID seasonId = dependency(idsByExternalId, ReferenceEntityType.SEASON, affiliation.seasonExternalId(), providerCode);
+                    UUID teamId = dependency(idsByExternalId, ReferenceEntityType.TEAM, affiliation.teamExternalId(), providerCode);
+                    UUID manufacturerId = dependency(idsByExternalId, ReferenceEntityType.MANUFACTURER, affiliation.manufacturerExternalId(), providerCode);
+                    UUID fromEventId = optionalDependency(idsByExternalId, ReferenceEntityType.EVENT, affiliation.validFromEventExternalId(), providerCode);
+                    UUID toEventId = optionalDependency(idsByExternalId, ReferenceEntityType.EVENT, affiliation.validToEventExternalId(), providerCode);
+                    var existing = store.findTeamManufacturerSeason(seasonId, teamId, manufacturerId, fromEventId);
+                    if (existing.isPresent() && !(existing.get().seasonId().equals(seasonId)
+                            && existing.get().teamId().equals(teamId) && existing.get().manufacturerId().equals(manufacturerId)
+                            && equal(existing.get().validFromEventId(), fromEventId) && equal(existing.get().validToEventId(), toEventId))) {
+                        throw new ReferenceDataConflictException(ReferenceEntityType.TEAM_MANUFACTURER_SEASON,
+                                affiliation.externalId(), "existing affiliation differs");
+                    }
+                    relationshipId = existing.map(ReferenceDataStore.TeamManufacturerSeasonRow::id)
+                            .orElseGet(() -> store.insertTeamManufacturerSeason(affiliation, seasonId, teamId, manufacturerId, fromEventId, toEventId));
+                    created = existing.isEmpty();
+                }
+                case RiderSeasonEntryReference entry -> {
+                    UUID seasonId = dependency(idsByExternalId, ReferenceEntityType.SEASON, entry.seasonExternalId(), providerCode);
+                    UUID riderId = dependency(idsByExternalId, ReferenceEntityType.RIDER, entry.riderExternalId(), providerCode);
+                    UUID teamId = dependency(idsByExternalId, ReferenceEntityType.TEAM, entry.teamExternalId(), providerCode);
+                    UUID manufacturerId = optionalDependency(idsByExternalId, ReferenceEntityType.MANUFACTURER, entry.manufacturerExternalId(), providerCode);
+                    UUID fromEventId = optionalDependency(idsByExternalId, ReferenceEntityType.EVENT, entry.validFromEventExternalId(), providerCode);
+                    UUID toEventId = optionalDependency(idsByExternalId, ReferenceEntityType.EVENT, entry.validToEventExternalId(), providerCode);
+                    var existing = store.findRiderSeasonEntry(seasonId, riderId, fromEventId);
+                    if (existing.isPresent() && !(existing.get().seasonId().equals(seasonId)
+                            && existing.get().riderId().equals(riderId) && existing.get().teamId().equals(teamId)
+                            && equal(existing.get().manufacturerId(), manufacturerId)
+                            && existing.get().competitionClass().equals(entry.competitionClass())
+                            && equal(existing.get().racingNumber(), entry.racingNumber())
+                            && equal(existing.get().validFromEventId(), fromEventId) && equal(existing.get().validToEventId(), toEventId))) {
+                        throw new ReferenceDataConflictException(ReferenceEntityType.RIDER_SEASON_ENTRY,
+                                entry.externalId(), "existing rider season entry differs");
+                    }
+                    relationshipId = existing.map(ReferenceDataStore.RiderSeasonEntryRow::id)
+                            .orElseGet(() -> store.insertRiderSeasonEntry(entry, seasonId, riderId, teamId, manufacturerId, fromEventId, toEventId));
+                    created = existing.isEmpty();
+                }
+            }
+            UUID sourceRecordId = identityStore.upsertSourceRecord(identityStore.providerId(providerCode),
+                    relationship.relationshipType() == ReferenceRelationshipType.TEAM_MANUFACTURER_SEASON
+                            ? ReferenceEntityType.TEAM_MANUFACTURER_SEASON : ReferenceEntityType.RIDER_SEASON_ENTRY,
+                    relationship.externalId(), relationship.sourceVersion(), Instant.now(clock));
+            store.attachPrimarySourceRecord(relationship.relationshipType().tableName(), relationshipId, sourceRecordId);
+            if (created) recordsWritten++;
+        }
+
         ingestionRuns.finishAttempt(attemptId, "SUCCEEDED",
-                records.values().stream().mapToInt(List::size).sum(), recordsWritten, Instant.now(clock));
+                records.values().stream().mapToInt(List::size).sum() + relationships.size(), recordsWritten, Instant.now(clock));
         return new ReferenceIngestionResult(providerCode,
-                records.values().stream().mapToInt(List::size).sum(), recordsWritten,
+                records.values().stream().mapToInt(List::size).sum() + relationships.size(), recordsWritten,
                 Map.copyOf(writtenByType));
+    }
+
+    private List<ReferenceRelationshipData> loadAndValidateRelationships(HistoricalDataProvider provider) {
+        List<ReferenceRelationshipData> relationships = provider.findReferenceRelationships();
+        Set<String> keys = new HashSet<>();
+        for (ReferenceRelationshipData relationship : relationships) {
+            if (relationship == null || blank(relationship.externalId()) || blank(relationship.sourceVersion())
+                    || !keys.add(relationship.relationshipType().name() + ":" + relationship.externalId())) {
+                throw new InvalidReferenceDataException(provider.code(), ReferenceEntityType.SEASON,
+                        relationship == null ? "unknown" : relationship.externalId(), "relationship identity is invalid or duplicated");
+            }
+            if (relationship instanceof RiderSeasonEntryReference entry && blank(entry.competitionClass())) {
+                throw new InvalidReferenceDataException(provider.code(), ReferenceEntityType.RIDER,
+                        entry.externalId(), "competition class is required");
+            }
+        }
+        return relationships;
+    }
+
+    private UUID dependency(Map<String, UUID> ids, ReferenceEntityType type, String externalId, String providerCode) {
+        if (externalId == null) throw new InvalidReferenceDataException(providerCode, type, "null", "required relationship dependency is missing");
+        UUID id = ids.get(type.name() + ":" + externalId);
+        if (id == null) throw new InvalidReferenceDataException(providerCode, type, externalId, "relationship dependency is missing");
+        return id;
+    }
+
+    private UUID optionalDependency(Map<String, UUID> ids, ReferenceEntityType type, String externalId, String providerCode) {
+        return externalId == null ? null : dependency(ids, type, externalId, providerCode);
     }
 
     private Map<ReferenceEntityType, List<ReferenceData>> loadAndValidate(HistoricalDataProvider provider) {
@@ -216,6 +321,18 @@ public class ReferenceDataIngestionService {
                 }
                 validateTimezone(providerCode, event, event.timezone());
             }
+            case SessionReference session -> {
+                if (blank(session.eventExternalId()) || blank(session.sessionType())
+                        || !List.of("PRACTICE", "QUALIFYING", "SPRINT", "RACE", "WARMUP", "OTHER")
+                        .contains(session.sessionType()) || blank(session.dataMode())
+                        || !List.of("HISTORICAL", "RECORDED", "LIVE").contains(session.dataMode())) {
+                    invalid(providerCode, session, "session type, event dependency, and data mode are invalid");
+                }
+                if (session.endedAt() != null && session.startedAt() != null
+                        && session.endedAt().isBefore(session.startedAt())) {
+                    invalid(providerCode, session, "session end precedes session start");
+                }
+            }
         }
     }
 
@@ -248,12 +365,12 @@ public class ReferenceDataIngestionService {
         }
     }
 
-    private UUID requireDependency(String providerCode, Map<String, UUID> ids, EventReference event, String externalId,
+    private UUID requireDependency(String providerCode, Map<String, UUID> ids, ReferenceData record, String externalId,
                                    ReferenceEntityType type) {
         UUID id = ids.get(type.name() + ":" + externalId);
         if (id == null) {
             throw new InvalidReferenceDataException(providerCode, type, externalId,
-                    "event " + event.externalId() + " references a missing dependency");
+                    record.entityType() + " " + record.externalId() + " references a missing dependency");
         }
         return id;
     }
@@ -273,6 +390,13 @@ public class ReferenceDataIngestionService {
         return row.seasonId().equals(seasonId) && row.circuitId().equals(circuitId) && row.name().equals(data.name())
                 && row.roundNumber() == data.roundNumber() && equal(row.scheduledStartAt(), data.scheduledStartAt())
                 && row.timezone().equals(data.timezone());
+    }
+
+    private boolean sameSession(ReferenceDataStore.SessionRow row, SessionReference data, UUID eventId) {
+        return row.eventId().equals(eventId) && row.sessionType().equals(data.sessionType())
+                && equal(row.scheduledStartAt(), data.scheduledStartAt())
+                && equal(row.startedAt(), data.startedAt()) && equal(row.endedAt(), data.endedAt())
+                && row.dataMode().equals(data.dataMode());
     }
 
     private void requireSame(boolean same, ReferenceEntityType type, ReferenceData record, String message) {

@@ -3,7 +3,7 @@ package com.motogp.intelligence.ingestion;
 /** Normalized provider data consumed by the reference-data persistence boundary. */
 public sealed interface ReferenceData
         permits SeasonReference, ManufacturerReference, TeamReference, RiderReference,
-        CircuitReference, EventReference {
+        CircuitReference, EventReference, SessionReference {
     ReferenceEntityType entityType();
 
     String externalId();

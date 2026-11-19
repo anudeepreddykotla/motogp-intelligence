@@ -16,5 +16,9 @@
 - Phase 1.1 includes only the deterministic `fixture-historical` provider; no external API, web-scraping adapter, or licensed historical dataset is integrated.
 - Provider identity mapping is an internal Java service boundary and is not yet exposed as a public or frontend API.
 - Identity mappings validate entity existence against the approved allowlisted domain tables; the generic `internal_id` design intentionally does not use polymorphic foreign keys.
-- Historical race results, sessions, laps, sectors, tyres, weather, standings, raw payload capture, and public ingestion APIs are not implemented yet.
-- Phase 1.2 ingests only the fixture provider’s seven normalized reference records; it does not yet ingest team/manufacturer affiliations or rider season entries.
+- Phase 1.3 implements only deterministic fixture ingestion for affiliations, rider entries, sessions, classifications, laps, and race positions; it does not include sectors, tyres, weather, standings, telemetry, raw-payload capture, or public ingestion APIs.
+- No authorized external historical provider is integrated, so fixture records must not be treated as production MotoGP data.
+- The read-only historical endpoints are temporarily unauthenticated because user authentication is not implemented; deployment must place them behind the approved authentication boundary.
+- Compose integration verification requires a reachable database endpoint; the local host currently exposes an unrelated PostgreSQL instance on port 5432.
+- Source versions are currently immutable per logical provider/entity/external-ID record. Version history, raw-payload association updates, and corrected-provider-data workflows are future work; a changed non-null source version is rejected.
+- Lap `observedAt` is intentionally nullable when the provider supplies timing without an observation timestamp. API consumers receive JSON `null`; timestamps are not inferred.

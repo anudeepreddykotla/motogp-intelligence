@@ -34,6 +34,7 @@ class ReferenceDataIngestionServiceTest {
     private static final UUID RIDER_TWO_ID = UUID.fromString("00000000-0000-0000-0000-000000000105");
     private static final UUID CIRCUIT_ID = UUID.fromString("00000000-0000-0000-0000-000000000106");
     private static final UUID EVENT_ID = UUID.fromString("00000000-0000-0000-0000-000000000107");
+    private static final UUID SESSION_ID = UUID.fromString("00000000-0000-0000-0000-000000000108");
 
     @Mock
     ReferenceDataStore store;
@@ -63,13 +64,13 @@ class ReferenceDataIngestionServiceTest {
 
         ReferenceIngestionResult result = service.ingest(PROVIDER);
 
-        assertThat(result.recordsSeen()).isEqualTo(7);
-        assertThat(result.recordsWritten()).isEqualTo(7);
+        assertThat(result.recordsSeen()).isEqualTo(8);
+        assertThat(result.recordsWritten()).isEqualTo(8);
         assertThat(result.recordsByType()).containsEntry(ReferenceEntityType.SEASON, 1)
                 .containsEntry(ReferenceEntityType.EVENT, 1);
         verify(ingestionRuns).ensureReferenceJob(PROVIDER);
         verify(ingestionRuns).startAttempt(any(), any());
-        verify(ingestionRuns).finishAttempt(any(), eq("SUCCEEDED"), eq(7), eq(7), any());
+        verify(ingestionRuns).finishAttempt(any(), eq("SUCCEEDED"), eq(8), eq(8), any());
         InOrder order = inOrder(identityMappings);
         order.verify(identityMappings).map(eq(PROVIDER), eq(ReferenceEntityType.SEASON),
                 eq("fixture-season-2025"), any());
@@ -97,7 +98,7 @@ class ReferenceDataIngestionServiceTest {
 
         ReferenceIngestionResult result = service.ingest(PROVIDER);
 
-        assertThat(result.recordsSeen()).isEqualTo(7);
+        assertThat(result.recordsSeen()).isEqualTo(8);
         assertThat(result.recordsWritten()).isZero();
         verify(store, never()).insertSeason(any());
         verify(store, never()).insertManufacturer(any());
@@ -187,6 +188,9 @@ class ReferenceDataIngestionServiceTest {
         given(store.findEvent(SEASON_ID, "Italian Grand Prix")).willReturn(Optional.of(
                 new ReferenceDataStore.EventRow(EVENT_ID, SEASON_ID, CIRCUIT_ID, "Italian Grand Prix", (short) 6,
                         Instant.parse("2025-06-20T08:00:00Z"), "Europe/Rome")));
+        given(store.findSession(EVENT_ID, "RACE")).willReturn(Optional.of(new ReferenceDataStore.SessionRow(
+                SESSION_ID, EVENT_ID, "RACE", Instant.parse("2025-06-22T12:00:00Z"),
+                Instant.parse("2025-06-22T12:00:00Z"), Instant.parse("2025-06-22T12:05:00Z"), "HISTORICAL")));
     }
 
     private HistoricalDataProvider providerOf(List<ReferenceData> records) {
