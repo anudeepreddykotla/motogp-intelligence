@@ -22,3 +22,5 @@
 - Compose integration verification requires a reachable database endpoint; the local host currently exposes an unrelated PostgreSQL instance on port 5432.
 - Source versions are currently immutable per logical provider/entity/external-ID record. Version history, raw-payload association updates, and corrected-provider-data workflows are future work; a changed non-null source version is rejected.
 - Lap `observedAt` is intentionally nullable when the provider supplies timing without an observation timestamp. API consumers receive JSON `null`; timestamps are not inferred.
+- Phase 1.4 completes read-only season, event, session, classification, lap, position, and session-scoped rider-comparison APIs. All historical list responses expose limit/offset/hasNext metadata but do not expose total counts or cursor links.
+- Comparison is limited to persisted classifications for one session and 2–4 riders; cross-event/circuit analytics and derived performance statistics belong to a later analytics phase.

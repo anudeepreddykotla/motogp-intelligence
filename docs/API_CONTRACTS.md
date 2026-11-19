@@ -1,6 +1,6 @@
 # API Contracts
 
-Status: Approved baseline; Phase 1.3 historical read APIs implemented.
+Status: Approved baseline; Phase 1.4 historical race read APIs implemented with pagination metadata.
 
 ## Public Java API
 
@@ -14,7 +14,6 @@ Every response uses a consistent envelope:
 {
   "requestId": "uuid",
   "data": {},
-  "page": null,
   "errors": []
 }
 ```
@@ -25,12 +24,31 @@ Errors contain a stable code, human-readable message, field errors where applica
 
 | Method | Endpoint | Purpose |
 |---|---|---|
-| GET | `/api/v1/events/{eventId}/sessions` | Sessions belonging to an event |
-| GET | `/api/v1/sessions/{sessionId}/results` | Rider classifications for a session |
+| GET | `/api/v1/seasons?limit=100&offset=0` | Available seasons, newest first |
+| GET | `/api/v1/seasons/{seasonId}` | Season details |
+| GET | `/api/v1/events?seasonId={seasonId}&limit=100&offset=0` | Events, optionally filtered by season |
+| GET | `/api/v1/events/{eventId}` | Event details, including circuit and season |
+| GET | `/api/v1/events/{eventId}/sessions?limit=100&offset=0` | Sessions belonging to an event |
+| GET | `/api/v1/sessions/{sessionId}` | Session details |
+| GET | `/api/v1/sessions/{sessionId}/results?classificationStatus=CLASSIFIED&limit=500&offset=0` | Rider classifications for a session |
+| GET | `/api/v1/riders/compare?sessionId={sessionId}&riderIds={riderId}&riderIds={riderId}` | Session-scoped comparison of 2–4 persisted rider classifications |
 | GET | `/api/v1/sessions/{sessionId}/laps?riderId={riderId}&limit=1000&offset=0` | Rider lap records |
 | GET | `/api/v1/sessions/{sessionId}/positions?riderId={riderId}&limit=1000&offset=0` | Rider race-position snapshots |
 
-These endpoints return persisted records only. Invalid pagination returns `400`; missing event, session, or rider resources return `404`. They are temporarily public in the local Phase 1 environment because user authentication is not implemented. Sectors, tyres, weather, standings, and telemetry are deliberately absent.
+These endpoints return persisted records only and use the existing `{requestId,data,errors}` response envelope. The paginated season, event, event-session, session-result, lap, and position responses use this `data` shape:
+
+```json
+{
+  "items": [],
+  "limit": 100,
+  "offset": 0,
+  "hasNext": false
+}
+```
+
+`hasNext` is determined by reading at most one record beyond the requested limit; the extra record is never returned. Ordering remains stable, and no total-count query is performed. Invalid pagination, an invalid comparison cardinality, or an unsupported status value returns `400`; missing season, event, session, or rider resources return `404`. They are temporarily public in the local Phase 1 environment because user authentication is not implemented. Sectors, tyres, weather, standings, telemetry, and replay are deliberately absent.
+
+The comparison endpoint is intentionally session-scoped in this phase. It returns only stored classification fields and does not invent lap, sector, or statistical values. A rider with no classification in the selected session is represented by an absent comparison row; a nonexistent rider is a `404`.
 
 Lap `observedAt` may be `null` when a provider supplies a lap time without an observation timestamp. The lap endpoint still returns HTTP 200 and JSON `null`; the service does not infer a timestamp from session start, lap number, or any other field.
 

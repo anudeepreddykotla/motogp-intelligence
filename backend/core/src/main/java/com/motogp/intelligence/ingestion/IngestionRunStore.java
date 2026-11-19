@@ -18,10 +18,12 @@ public class IngestionRunStore {
         this.jdbc = jdbc;
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public UUID ensureReferenceJob(String providerCode) {
         return ensureJob(providerCode, "REFERENCE");
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public UUID ensureHistoricalJob(String providerCode) {
         return ensureJob(providerCode, "HISTORICAL");
     }

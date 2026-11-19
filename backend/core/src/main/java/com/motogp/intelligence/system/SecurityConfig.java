@@ -20,7 +20,12 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health/**", "/api/v1/system/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/events/*/sessions", "/api/v1/sessions/**").permitAll()
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/v1/seasons", "/api/v1/seasons/*",
+                                "/api/v1/events", "/api/v1/events/*", "/api/v1/events/*/sessions",
+                                "/api/v1/riders/compare",
+                                "/api/v1/sessions/*", "/api/v1/sessions/*/results",
+                                "/api/v1/sessions/*/laps", "/api/v1/sessions/*/positions").permitAll()
                         .anyRequest().denyAll())
                 .build();
     }

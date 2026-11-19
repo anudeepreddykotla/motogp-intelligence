@@ -1,10 +1,10 @@
 # Implementation Status
 
-Last reviewed: 2026-11-18
+Last reviewed: 2026-11-19
 
 ## Current state
 
-Status: Phase 0, Phase 1.1, Phase 1.2, and Phase 1.3 historical-data milestones implemented, including Phase 1.3 hardening.
+Status: Phase 0, Phase 1.1, Phase 1.2, Phase 1.3 hardening, and Phase 1.4 historical API completeness implemented.
 
 The approved Java-first modular monolith, Python AI service, React frontend shell, Flyway migrations, Docker Compose configuration, and CI workflow are present. Phase 1.3 adds deterministic fixture-based historical race foundations: season affiliations, rider entries, sessions, classifications, laps, race positions, provenance, and read-only Java APIs. No sectors, tyres, weather, standings, telemetry, news ingestion, ML models, RAG, agents, simulation, live timing, or external provider integration has been implemented.
 
@@ -37,7 +37,7 @@ The requested `docs/PHASE_0_EXECUTION_PLAN.md` filename does not exist in the ap
 - Immutable source-version conflict detection shared by reference and race ingestion.
 - Atomic PostgreSQL source-record upsert with concurrent same-version convergence and conflicting-version rejection.
 - PostgreSQL integration coverage proving failed race persistence rolls back while the FAILED attempt remains committed.
-- Read-only historical APIs for sessions, results, laps, and positions.
+- Read-only historical APIs for seasons, events, sessions, results, laps, positions, and session-scoped rider comparison, with limit/offset metadata for all historical list endpoints.
 
 ### Python
 
@@ -72,9 +72,11 @@ The requested `docs/PHASE_0_EXECUTION_PLAN.md` filename does not exist in the ap
 | Check | Result |
 |---|---|
 | `mvn -B clean verify` | Passed: 28 tests, 0 failures, 0 errors; 7 Compose-gated tests skipped by default |
+| Final `mvn -B clean verify` for Phase 1.4 pagination hardening | Passed: 42 tests, 0 failures, 0 errors; 8 Compose-gated tests skipped by default |
 | Fixture ingestion unit tests | Passed: 5 race-ingestion tests, including all three typed logical duplicate-key cases; 5 reference-ingestion tests; 5 identity-mapping tests |
 | Nullable lap timestamp API test | Passed: HTTP 200 response with JSON `null` for `observedAt` |
 | Compose PostgreSQL ingestion integration tests | Passed explicitly with `runComposeIntegrationTests=true`: 7 tests, 0 failures/errors; includes rollback with FAILED attempt, source-version immutability/null behavior, concurrent same-version convergence, conflicting-version rejection, and reference/race idempotency |
+| Compose PostgreSQL historical read-store integration test | Passed explicitly with `runComposeIntegrationTests=true`: 1 test, 0 failures/errors; verified season/event/session hierarchy, classification retrieval, stable lap/position ordering, nullable values, comparison query, and lap/position pagination query boundaries on PostgreSQL 16.16 |
 | `python -m pytest` in isolated `.venv` | Passed: 3 tests, 0 failures |
 | `npm run build` | Passed: TypeScript compilation and Vite production build |
 | `npm test` | Passed: TypeScript check |
@@ -96,6 +98,8 @@ The requested `docs/PHASE_0_EXECUTION_PLAN.md` filename does not exist in the ap
 | Redis | Passed: PONG |
 | Fixture provider registration | Passed: `fixture-historical` present in PostgreSQL |
 | Temporary-port Java/Python HTTP integration | Passed: Java status, authenticated Java-to-Python health, and Python health responses verified |
+| Phase 1.4 backend Docker rebuild and runtime checks | Passed: backend image rebuilt, readiness returned HTTP 200, Compose configuration validated, and `/api/v1/seasons` and `/api/v1/events` returned HTTP 200 with persisted fixture data |
+| Phase 1.4 pagination metadata tests | Passed: 14 controller tests including full-page, partial-final-page, and empty-page cases for laps and positions; `hasNext` uses the extra-row boundary and returned items remain limited to the requested page size |
 
 The frontend dependency installation reported four npm audit findings. They are not yet addressed because dependency remediation is outside the Phase 0 architecture scope and must be reviewed before changing versions.
 
@@ -113,7 +117,8 @@ curl --fail http://127.0.0.1:8080/actuator/health/readiness
 cd ai && .venv/bin/python -m pytest
 cd frontend/web && npm run build && npm test
 POSTGRES_PORT=55432 docker compose up -d postgres
-mvn -B -Dtest=ReferenceDataComposeIntegrationTest -DrunComposeIntegrationTests=true -Dtest.db.url=jdbc:postgresql://127.0.0.1:55432/motogp test
+mvn -B -Dtest=ReferenceDataComposeIntegrationTest -DrunComposeIntegrationTests=true -Dtest.db.url=jdbc:postgresql://127.0.0.1:55432/motogp_phase14c test
+mvn -B -Dtest=HistoricalRaceReadStoreComposeIntegrationTest -DrunComposeIntegrationTests=true -Dtest.db.url=jdbc:postgresql://127.0.0.1:55432/motogp_phase14e test
 POSTGRES_PORT=5432 docker compose up -d postgres
 docker build --file frontend/web/Dockerfile --tag motogp-intelligence-web:phase0-fix .
 docker compose exec -T redis redis-cli ping
@@ -131,4 +136,4 @@ git diff --check
 
 ## Next action
 
-Review the Phase 1.3 implementation before beginning any later historical-data milestone. Do not add sectors, tyres, weather, standings, telemetry, or external providers without a separate approved scope.
+Review the Phase 1.4 API implementation before beginning the next historical-data milestone. Do not add sectors, tyres, weather, standings, telemetry, or external providers without a separate approved scope.
